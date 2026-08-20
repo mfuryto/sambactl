@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from sambactl.system.commands import CommandResult, CommandRunner
+from sambactl.system.identity import validate_username
 
 
 @dataclass
@@ -35,26 +36,33 @@ class SambaUserManager:
         return parse_pdbedit(result.stdout) if result.ok else []
 
     def exists(self, username: str) -> bool:
+        validate_username(username)
         return self.runner.run(("pdbedit", "-L", "-u", username)).ok
 
     def create(self, username: str, password: str) -> CommandResult:
+        validate_username(username)
         return self.runner.run(
             ("smbpasswd", "-s", "-a", username), input_text=f"{password}\n{password}\n"
         )
 
     def change_password(self, username: str, password: str) -> CommandResult:
+        validate_username(username)
         return self.runner.run(
             ("smbpasswd", "-s", username), input_text=f"{password}\n{password}\n"
         )
 
     def enable(self, username: str) -> CommandResult:
+        validate_username(username)
         return self.runner.run(("smbpasswd", "-e", username))
 
     def disable(self, username: str) -> CommandResult:
+        validate_username(username)
         return self.runner.run(("smbpasswd", "-d", username))
 
     def delete(self, username: str) -> CommandResult:
+        validate_username(username)
         return self.runner.run(("smbpasswd", "-x", username))
 
     def status(self, username: str) -> CommandResult:
+        validate_username(username)
         return self.runner.run(("pdbedit", "-Lv", "-u", username))

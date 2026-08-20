@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import stat
 from datetime import datetime
 from pathlib import Path
 
@@ -16,6 +17,13 @@ class BackupManager:
 
     def ensure_directory(self) -> None:
         self.directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if self.directory.stat().st_mode & 0o077:
+            self.directory.chmod(0o700)
+
+    def _copy(self, destination: Path) -> None:
+        shutil.copy2(self.config_path, destination)
+        source_mode = stat.S_IMODE(self.config_path.stat().st_mode)
+        destination.chmod(source_mode)
 
     def create(self, *, now: datetime | None = None) -> Path:
         self.ensure_directory()
@@ -25,7 +33,7 @@ class BackupManager:
         while destination.exists():
             destination = self.directory / f"smb.conf.{stamp}-{counter}.bak"
             counter += 1
-        shutil.copy2(self.config_path, destination)
+        self._copy(destination)
         self.rotate()
         return destination
 
@@ -37,7 +45,7 @@ class BackupManager:
         destination = self.directory / f"manual-{safe}.bak"
         if destination.exists():
             raise FileExistsError(destination)
-        shutil.copy2(self.config_path, destination)
+        self._copy(destination)
         return destination
 
     def list(self) -> list[Path]:
