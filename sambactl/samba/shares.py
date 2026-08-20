@@ -4,6 +4,20 @@ from collections.abc import Mapping
 
 from sambactl.samba.config import SambaConfig
 
+
+def validate_share_name(name: str) -> str:
+    if (
+        not name
+        or name != name.strip()
+        or name.casefold() == "global"
+        or any(ord(character) < 32 for character in name)
+        or "[" in name
+        or "]" in name
+    ):
+        raise ValueError("Share name is empty, reserved, or contains section/control characters")
+    return name
+
+
 TEMPLATES: dict[str, dict[str, str]] = {
     "Private Share": {
         "browseable": "yes",
@@ -16,7 +30,6 @@ TEMPLATES: dict[str, dict[str, str]] = {
         "browseable": "yes",
         "read only": "no",
         "guest ok": "no",
-        "force group": "sambashare",
         "create mask": "0660",
         "directory mask": "2770",
     },
@@ -35,8 +48,7 @@ TEMPLATES: dict[str, dict[str, str]] = {
 class ShareManager:
     @staticmethod
     def create(config: SambaConfig, name: str, values: Mapping[str, str]) -> None:
-        if not name.strip() or name.casefold() == "global":
-            raise ValueError("Invalid share name")
+        validate_share_name(name)
         if config.section(name):
             raise ValueError(f"Share [{name}] already exists")
         config.set_options(name, values)
@@ -51,6 +63,7 @@ class ShareManager:
         if not config.section(name):
             raise KeyError(name)
         if new_name and new_name != name:
+            validate_share_name(new_name)
             config.rename_section(name, new_name)
             name = new_name
         config.set_options(name, values)

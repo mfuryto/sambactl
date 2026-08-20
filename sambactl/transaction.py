@@ -64,12 +64,23 @@ class ConfigTransaction:
         try:
             mutate(config)
             proposed = config.render()
-            if proposed == original:
-                return OperationResult(True, "No changes were necessary")
-            preflight = self.validator.syntax(proposed, self.config_path.parent)
-            if not preflight.ok:
-                return OperationResult(False, "Proposed configuration failed validation", preflight)
+        except Exception as exc:
+            return OperationResult(False, f"Could not prepare {description}: {exc}")
+        if proposed == original:
+            return OperationResult(True, "No changes were necessary")
+        preflight = self.validator.syntax(proposed, self.config_path.parent)
+        if not preflight.ok:
+            return OperationResult(False, "Proposed configuration failed validation", preflight)
+        reloadable, reload_detail = self.services.can_reload()
+        if not reloadable:
+            return OperationResult(
+                False, f"Proposed configuration cannot be applied safely: {reload_detail}"
+            )
+        try:
             backup = self.backups.create()
+        except Exception as exc:
+            return OperationResult(False, f"Backup creation failed; no changes were written: {exc}")
+        try:
             atomic_write(self.config_path, proposed)
             postflight = self.validator.syntax(proposed, self.config_path.parent)
             if not postflight.ok:
@@ -82,20 +93,41 @@ class ConfigTransaction:
                 True, f"{description} applied; backup: {backup.name}", postflight
             )
         except Exception as exc:
-            try:
-                atomic_write(self.config_path, original)
-                self.services.reload()
-                self.refresh()
-            except Exception as rollback_exc:
+            rollback_ok, rollback_detail = self._verified_rollback(original)
+            if not rollback_ok:
                 return OperationResult(
-                    False, f"{description} failed ({exc}); rollback also failed: {rollback_exc}"
+                    False,
+                    f"CRITICAL: {description} failed ({exc}); rollback verification failed "
+                    f"at {rollback_detail}. Manual administrator intervention may be required.",
                 )
-            return OperationResult(False, f"{description} failed and was rolled back: {exc}")
+            return OperationResult(
+                False, f"{description} failed and verified rollback succeeded: {exc}"
+            )
+
+    def _verified_rollback(self, original: str) -> tuple[bool, str]:
+        try:
+            atomic_write(self.config_path, original)
+        except Exception as exc:
+            return False, f"atomic restore: {exc}"
+        validation = self.validator.syntax(original, self.config_path.parent)
+        if not validation.ok:
+            return False, "restored configuration validation"
+        reloaded, detail = self.services.reload()
+        if not reloaded:
+            return False, f"Samba reload: {detail}"
+        try:
+            self.refresh()
+        except Exception as exc:
+            return False, f"fingerprint refresh: {exc}"
+        return True, "verified"
 
     def restore(self, backup: Path) -> OperationResult:
         if backup.parent.resolve() != self.backups.directory.resolve() or not backup.is_file():
             return OperationResult(False, "Invalid backup path")
         content = backup.read_text(encoding="utf-8")
+        validation = self.validator.syntax(content, self.config_path.parent)
+        if not validation.ok:
+            return OperationResult(False, "Selected backup failed validation", validation)
         return self.apply(
             f"Restore {backup.name}",
             lambda config: setattr(config, "lines", SambaConfig(content).lines),

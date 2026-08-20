@@ -15,6 +15,7 @@ Sambactl is a menu-driven terminal application for practical Samba administratio
 - Recommended creation of non-interactive Linux accounts where needed; Linux account deletion is always a separate confirmation and never removes home/data.
 - Automatic timestamped backups beside the detected config, default retention of 10 automatic backups, and never-rotated preserved backups.
 - Dry-run readiness report covering syntax, paths, safe write access, service detection, and reload prerequisites.
+- Operation-specific share preflight covering the proposed config, owner/group/mode, paths, referenced accounts, backup access, and reload capability.
 - External-change detection, process locking, preflight/post-write validation, metadata-preserving atomic replacement, automatic reload, and rollback.
 - Startup dependency and Samba/service detection. Missing tools degrade affected features with a warning.
 
@@ -52,6 +53,12 @@ sudo apt install ../sambactl_0.1.0-1_all.deb
 sudo sambactl
 ```
 
+Read-only host inspection is available without starting the TUI and never creates state or backups:
+
+```bash
+sudo sambactl --check
+```
+
 The first run detects Samba, services, dependencies and the active config; creates the backup directory when privileged; records minimal setup state in `/var/lib/sambactl/state.json`; and enters the main menu. A separate wizard is not required.
 
 For development:
@@ -70,7 +77,7 @@ Never point development runs at production configuration. Tests only use tempora
 
 ## Safety model
 
-Every configuration edit re-checks the live file fingerprint, reads it again, validates the proposed complete file, creates a backup, atomically replaces the config while retaining mode/ownership, validates the installed file, reloads detected Samba services, and restores the prior content if anything fails. No normal manual reload action exists.
+Every configuration edit re-checks the live file fingerprint, reads it again, validates the proposed complete file, creates a backup, atomically replaces the resolved config target while retaining its symlink, mode, ownership, extended attributes and POSIX ACL xattrs, validates the installed file, and reloads the active Samba service. Rollback is reported as successful only after the original file is restored, revalidated, reloaded, and fingerprinted. No normal manual reload action exists.
 
 Automatic backups for `/etc/samba/smb.conf` live in `/etc/samba/backups/` as `smb.conf.YYYY-MM-DD_HH-MM-SS.bak`. The newest ten are retained. Names beginning `manual-` are preserved indefinitely. Restores use the same transaction and rollback path.
 

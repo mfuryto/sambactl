@@ -10,7 +10,13 @@ from sambactl.paths import backup_directory, detect_smb_conf
 from sambactl.samba.service import SambaServiceManager
 from sambactl.system.commands import CommandRunner
 
-REQUIRED = ("testparm", "smbpasswd", "pdbedit", "systemctl", "getent", "useradd", "userdel")
+FEATURE_COMMANDS = {
+    "configuration changes": ("testparm", "systemctl"),
+    "Samba user enumeration": ("pdbedit",),
+    "Samba user changes": ("smbpasswd",),
+    "Linux user creation": ("useradd",),
+    "Linux user deletion": ("userdel",),
+}
 
 
 def state_path() -> Path:
@@ -29,7 +35,12 @@ def inspect_system(runner: CommandRunner, config_path: Path | None = None) -> Ru
         if result.ok:
             version = result.stdout.strip()
     services = SambaServiceManager(runner).detect()
-    missing = [command for command in REQUIRED if not runner.exists(command)]
+    commands = sorted({command for values in FEATURE_COMMANDS.values() for command in values})
+    missing = [command for command in commands if not runner.exists(command)]
+    capabilities = {
+        feature: all(runner.exists(command) for command in commands)
+        for feature, commands in FEATURE_COMMANDS.items()
+    }
     if os.geteuid() == 0:
         BackupManager(path, backup_directory(path)).ensure_directory()
         try:
@@ -40,4 +51,12 @@ def inspect_system(runner: CommandRunner, config_path: Path | None = None) -> Ru
             )
         except OSError:
             pass
-    return RuntimeInfo(path, version, services, missing)
+    service_manager = SambaServiceManager(runner)
+    return RuntimeInfo(
+        path,
+        version,
+        services,
+        service_manager.mode(services),
+        missing,
+        capabilities,
+    )

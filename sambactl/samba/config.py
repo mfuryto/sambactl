@@ -65,13 +65,15 @@ class SambaConfig:
         if not section:
             self._append_section(section_name, {k: v for k, v in options.items() if v is not None})
             return
-        remaining = {key.casefold(): (key, value) for key, value in options.items()}
+        requested = {key.casefold(): (key, value) for key, value in options.items()}
+        seen: set[str] = set()
         output: list[str] = []
         for line in self.lines[section.start + 1 : section.end]:
             match = OPTION_RE.match(line)
             normalized = match.group(2).strip().casefold() if match else None
-            if normalized in remaining:
-                _, value = remaining.pop(normalized)
+            if normalized in requested:
+                _, value = requested[normalized]
+                seen.add(normalized)
                 if value is not None:
                     newline = match.group(5) or "\n"
                     output.append(
@@ -79,8 +81,8 @@ class SambaConfig:
                     )
             else:
                 output.append(line)
-        for key, value in remaining.values():
-            if value is not None:
+        for normalized, (key, value) in requested.items():
+            if normalized not in seen and value is not None:
                 output.append(f"    {key} = {value}\n")
         self.lines[section.start + 1 : section.end] = output
 
