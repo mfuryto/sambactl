@@ -25,3 +25,16 @@ jobs:
       - run: sudo apt-get update
       - run: sudo apt-get install -y build-essential debhelper dh-python pybuild-plugin-pyproject python3-all python3-setuptools
       - run: dpkg-buildpackage -us -uc -b
+      - name: Collect Debian package
+        run: |
+          shopt -s nullglob
+          packages=(../*.deb)
+          (( ${#packages[@]} > 0 ))
+          mkdir -p artifacts
+          cp -- "${packages[@]}" artifacts/
+      - name: Upload Debian package
+        uses: actions/upload-artifact@v4
+        with:
+          name: sambactl-debian-package
+          path: artifacts/*.deb
+          if-no-files-found: error
