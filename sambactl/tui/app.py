@@ -10,7 +10,6 @@ from prompt_toolkit.shortcuts import (
     confirm,
     input_dialog,
     message_dialog,
-    password_dialog,
     radiolist_dialog,
 )
 from prompt_toolkit.styles import Style
@@ -67,6 +66,11 @@ COMMON_GLOBAL = (
     "interfaces",
     "bind interfaces only",
 )
+
+
+def _password_input(title: str, text: str) -> str | None:
+    """Prompt for a password using the prompt_toolkit 3.0 public API."""
+    return input_dialog(title=title, text=text, password=True, style=STYLE).run()
 
 
 class SambactlApp:
@@ -456,9 +460,7 @@ class SambactlApp:
             if action == "create":
                 self._create_user(username)
             elif action == "password":
-                password = password_dialog(
-                    title="Password", text="New password:", style=STYLE
-                ).run()
+                password = _password_input(title="Password", text="New password:")
                 if password:
                     self._command_result(
                         self.samba_users.change_password(username, password), "Password changed"
@@ -485,9 +487,9 @@ class SambactlApp:
             if not create_linux:
                 self._message("Cancelled", "Samba requires a corresponding Linux account")
                 return
-        password = password_dialog(
-            title="Samba password", text="Password (never logged or stored):", style=STYLE
-        ).run()
+        password = _password_input(
+            title="Samba password", text="Password (never logged or stored):"
+        )
         if not password:
             self.status = "User creation cancelled; no accounts were changed"
             return
