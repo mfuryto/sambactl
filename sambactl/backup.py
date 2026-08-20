@@ -1,0 +1,51 @@
+from __future__ import annotations
+
+import re
+import shutil
+from datetime import datetime
+from pathlib import Path
+
+AUTOMATIC_RE = re.compile(r"^smb\.conf\.\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-\d+)?\.bak$")
+
+
+class BackupManager:
+    def __init__(self, config_path: Path, directory: Path, retention: int = 10) -> None:
+        self.config_path = config_path
+        self.directory = directory
+        self.retention = retention
+
+    def ensure_directory(self) -> None:
+        self.directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+
+    def create(self, *, now: datetime | None = None) -> Path:
+        self.ensure_directory()
+        stamp = (now or datetime.now()).strftime("%Y-%m-%d_%H-%M-%S")
+        destination = self.directory / f"smb.conf.{stamp}.bak"
+        counter = 1
+        while destination.exists():
+            destination = self.directory / f"smb.conf.{stamp}-{counter}.bak"
+            counter += 1
+        shutil.copy2(self.config_path, destination)
+        self.rotate()
+        return destination
+
+    def create_preserved(self, name: str) -> Path:
+        safe = re.sub(r"[^A-Za-z0-9_.-]+", "-", name).strip(".-")
+        if not safe:
+            raise ValueError("Backup name must contain letters or numbers")
+        self.ensure_directory()
+        destination = self.directory / f"manual-{safe}.bak"
+        if destination.exists():
+            raise FileExistsError(destination)
+        shutil.copy2(self.config_path, destination)
+        return destination
+
+    def list(self) -> list[Path]:
+        if not self.directory.exists():
+            return []
+        return sorted(self.directory.glob("*.bak"), key=lambda p: p.stat().st_mtime, reverse=True)
+
+    def rotate(self) -> None:
+        automatic = [p for p in self.list() if AUTOMATIC_RE.match(p.name)]
+        for obsolete in automatic[self.retention :]:
+            obsolete.unlink()
