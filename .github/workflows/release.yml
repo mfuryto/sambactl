@@ -33,19 +33,24 @@ jobs:
       - name: Build Debian package
         run: dpkg-buildpackage -us -uc -b
 
-      - name: Verify Debian package exists
-        run: test -n "$(find .. -maxdepth 1 -type f -name '*.deb' -print -quit)"
+      - name: Collect Debian package
+        run: |
+          shopt -s nullglob
+          packages=(../*.deb)
+          (( ${#packages[@]} > 0 ))
+          mkdir -p artifacts
+          cp -- "${packages[@]}" artifacts/
 
       - name: Upload Debian package artifact
         uses: actions/upload-artifact@v4
         with:
           name: sambactl-debian-package
-          path: ../*.deb
+          path: artifacts/*.deb
           if-no-files-found: error
 
       - name: Attach Debian package to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ../*.deb
+          files: artifacts/*.deb
           fail_on_unmatched_files: true
           generate_release_notes: true
