@@ -28,3 +28,12 @@ def test_samba_password_not_in_arguments() -> None:
     runner = FakeRunner()
     SambaUserManager(runner).create("alice", "top-secret")
     assert "top-secret" not in " ".join(runner.calls[-1])
+
+
+def test_linux_user_commands_use_option_separator(monkeypatch) -> None:
+    runner = FakeRunner()
+    manager = LinuxUserManager(runner)
+    manager.create("alice")
+    manager.delete("alice")
+    assert runner.calls[0][-2:] == ("--", "alice")
+    assert runner.calls[1][-2:] == ("--", "alice")

@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -19,3 +20,12 @@ def test_preserved_names_are_safe(config_path: Path, tmp_path: Path) -> None:
     created = manager.create_preserved("nightly / safe")
     assert created.parent == tmp_path / "backups"
     assert created.name == "manual-nightly-safe.bak"
+
+
+def test_backups_are_never_more_permissive_than_source(config_path: Path, tmp_path: Path) -> None:
+    os.chmod(config_path, 0o600)
+    manager = BackupManager(config_path, tmp_path / "backups")
+    automatic = manager.create()
+    manual = manager.create_preserved("secure")
+    assert automatic.stat().st_mode & 0o777 == 0o600
+    assert manual.stat().st_mode & 0o777 == 0o600

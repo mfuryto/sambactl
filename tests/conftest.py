@@ -32,7 +32,7 @@ class FakeRunner:
         self.calls.append(argv)
         failed = argv[0] in self.fail or "reload" in self.fail and "reload" in argv
         if argv[:2] == ("systemctl", "show"):
-            return CommandResult(argv, 0, "loaded\n", "")
+            return CommandResult(argv, 0, "yes\n", "")
         return CommandResult(
             argv, 1 if failed else 0, "" if failed else "ok\n", "failure" if failed else ""
         )

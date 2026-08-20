@@ -33,6 +33,21 @@ def test_duplicate_share_rejected(config_path: Path) -> None:
         ShareManager.create(SambaConfig.read(config_path), "docs", {})
 
 
+@pytest.mark.parametrize("name", ["", "global", " bad", "bad]name", "bad\nname"])
+def test_invalid_share_names_are_rejected(config_path: Path, name: str) -> None:
+    with pytest.raises(ValueError):
+        ShareManager.create(SambaConfig.read(config_path), name, {"path": "/srv/test"})
+
+
+def test_rename_preserves_unrelated_configuration(config_path: Path) -> None:
+    config = SambaConfig.read(config_path)
+    ShareManager.update(config, "docs", {"comment": "Renamed"}, new_name="documents")
+    rendered = config.render()
+    assert "[documents]" in rendered
+    assert "custom option = keep me" in rendered
+    assert "fruit:metadata = stream" in rendered
+
+
 def test_fingerprint_changes(config_path: Path) -> None:
     before = file_fingerprint(config_path)
     config_path.write_text(config_path.read_text() + "# external\n")
