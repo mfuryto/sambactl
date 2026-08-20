@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import stat
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -21,9 +23,19 @@ class BackupManager:
             self.directory.chmod(0o700)
 
     def _copy(self, destination: Path) -> None:
-        shutil.copy2(self.config_path, destination)
-        source_mode = stat.S_IMODE(self.config_path.stat().st_mode)
-        destination.chmod(source_mode)
+        fd, temporary = tempfile.mkstemp(prefix=f".{destination.name}.", dir=self.directory)
+        temporary_path = Path(temporary)
+        try:
+            os.close(fd)
+            fd = -1
+            shutil.copy2(self.config_path, temporary_path)
+            source_mode = stat.S_IMODE(self.config_path.stat().st_mode)
+            temporary_path.chmod(source_mode)
+            temporary_path.replace(destination)
+        finally:
+            if fd >= 0:
+                os.close(fd)
+            temporary_path.unlink(missing_ok=True)
 
     def create(self, *, now: datetime | None = None) -> Path:
         self.ensure_directory()
@@ -54,6 +66,11 @@ class BackupManager:
         return sorted(self.directory.glob("*.bak"), key=lambda p: p.stat().st_mtime, reverse=True)
 
     def rotate(self) -> None:
-        automatic = [p for p in self.list() if AUTOMATIC_RE.match(p.name)]
+        # copy2 preserves smb.conf mtime, so filename timestamps are authoritative here.
+        automatic = sorted(
+            (path for path in self.list() if AUTOMATIC_RE.match(path.name)),
+            key=lambda path: path.name,
+            reverse=True,
+        )
         for obsolete in automatic[self.retention :]:
             obsolete.unlink()

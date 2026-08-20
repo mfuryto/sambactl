@@ -44,12 +44,13 @@ def atomic_write(path: Path, content: str) -> None:
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
-        os.chmod(temp_path, stat.S_IMODE(current.st_mode))
         try:
             os.chown(temp_path, current.st_uid, current.st_gid)
         except PermissionError:
             if os.geteuid() == 0:
                 raise
+        # chown can clear setuid/setgid bits, so restore the complete mode afterward.
+        os.chmod(temp_path, stat.S_IMODE(current.st_mode))
         _copy_xattrs(target, temp_path)
         os.replace(temp_path, target)
         directory_fd = os.open(target.parent, os.O_DIRECTORY)
@@ -69,9 +70,16 @@ def safe_create_directory(path: Path, uid: int, gid: int, mode: int) -> None:
 def set_directory_metadata(path: Path, uid: int, gid: int, mode: int) -> None:
     if not path.is_dir() or path.is_symlink():
         raise OSError(f"Refusing to change non-directory or symlink: {path}")
-    os.chmod(path, mode)
     if os.geteuid() == 0:
         os.chown(path, uid, gid)
+    os.chmod(path, mode)
+
+
+def directory_metadata(path: Path) -> tuple[int, int, int]:
+    if not path.is_dir() or path.is_symlink():
+        raise OSError(f"Refusing to inspect non-directory or symlink: {path}")
+    current = path.stat()
+    return current.st_uid, current.st_gid, stat.S_IMODE(current.st_mode)
 
 
 def remove_empty_directory(path: Path) -> None:

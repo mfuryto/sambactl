@@ -64,17 +64,23 @@ class ConfigTransaction:
         try:
             mutate(config)
             proposed = config.render()
-            if proposed == original:
-                return OperationResult(True, "No changes were necessary")
-            preflight = self.validator.syntax(proposed, self.config_path.parent)
-            if not preflight.ok:
-                return OperationResult(False, "Proposed configuration failed validation", preflight)
-            reloadable, reload_detail = self.services.can_reload()
-            if not reloadable:
-                return OperationResult(
-                    False, f"Proposed configuration cannot be applied safely: {reload_detail}"
-                )
+        except Exception as exc:
+            return OperationResult(False, f"Could not prepare {description}: {exc}")
+        if proposed == original:
+            return OperationResult(True, "No changes were necessary")
+        preflight = self.validator.syntax(proposed, self.config_path.parent)
+        if not preflight.ok:
+            return OperationResult(False, "Proposed configuration failed validation", preflight)
+        reloadable, reload_detail = self.services.can_reload()
+        if not reloadable:
+            return OperationResult(
+                False, f"Proposed configuration cannot be applied safely: {reload_detail}"
+            )
+        try:
             backup = self.backups.create()
+        except Exception as exc:
+            return OperationResult(False, f"Backup creation failed; no changes were written: {exc}")
+        try:
             atomic_write(self.config_path, proposed)
             postflight = self.validator.syntax(proposed, self.config_path.parent)
             if not postflight.ok:

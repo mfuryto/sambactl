@@ -53,10 +53,13 @@ class UserProvisioner:
                 )
             created_linux = True
 
-        samba_result = self.samba.create(username, password)
-        if samba_result.ok:
-            return OperationResult(True, "Samba user created")
-        detail = samba_result.stderr.strip() or samba_result.stdout.strip() or "unknown error"
+        try:
+            samba_result = self.samba.create(username, password)
+            if samba_result.ok:
+                return OperationResult(True, "Samba user created")
+            detail = self._safe_detail(samba_result, password)
+        except Exception as exc:
+            detail = self._redact(str(exc) or "unknown error", password)
         if created_linux:
             rollback = self.linux.delete(username)
             if not rollback.ok:
@@ -71,3 +74,12 @@ class UserProvisioner:
                 False, f"Samba account creation failed ({detail}); Linux account was rolled back"
             )
         return OperationResult(False, f"Samba account creation failed: {detail}")
+
+    @staticmethod
+    def _safe_detail(result: CommandResult, password: str) -> str:
+        detail = result.stderr.strip() or result.stdout.strip() or "unknown error"
+        return UserProvisioner._redact(detail, password)
+
+    @staticmethod
+    def _redact(detail: str, password: str) -> str:
+        return detail.replace(password, "[REDACTED]") if password else detail

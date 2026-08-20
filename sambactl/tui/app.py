@@ -25,6 +25,7 @@ from sambactl.samba.users import SambaUserManager
 from sambactl.samba.validation import Validator
 from sambactl.setup import inspect_system
 from sambactl.system.filesystem import (
+    directory_metadata,
     remove_empty_directory,
     safe_create_directory,
     set_directory_metadata,
@@ -263,8 +264,7 @@ class SambactlApp:
                 self._message("Error", str(exc))
                 return
         else:
-            current = path.stat()
-            original_metadata = (current.st_uid, current.st_gid, current.st_mode & 0o7777)
+            original_metadata = directory_metadata(path)
             if not confirm(
                 f"Set {path} to {filesystem.owner}:{filesystem.group} mode {filesystem.mode:04o}?",
                 default=True,

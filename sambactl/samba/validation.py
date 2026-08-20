@@ -32,7 +32,11 @@ class Validator:
                 handle.write(text)
             result = self.runner.run(("testparm", "-s", temporary.as_posix()))
             status = Status.READY if result.ok else Status.FAILED
-            detail = "Configuration syntax is valid" if result.ok else result.stderr.strip()
+            detail = (
+                "Configuration syntax is valid"
+                if result.ok
+                else result.stderr.strip() or result.stdout.strip() or "testparm rejected config"
+            )
             report.checks.append(Check("Configuration syntax", status, detail))
         except OSError as exc:
             report.checks.append(Check("Safe write", Status.FAILED, str(exc)))
@@ -95,7 +99,7 @@ class Validator:
         )
         backup_path = backup_directory(config_path)
         backup_parent = backup_path if backup_path.exists() else backup_path.parent
-        backup_writable = os.access(backup_parent, os.W_OK)
+        backup_writable = backup_parent.is_dir() and os.access(backup_parent, os.W_OK | os.X_OK)
         report.checks.append(
             Check(
                 "Backup directory",
@@ -148,7 +152,7 @@ class Validator:
                 filesystem.group if group else f"Linux group {filesystem.group} does not exist",
             )
         )
-        mode_status = Status.WARNING if filesystem.mode & 0o002 else Status.READY
+        mode_status = Status.FAILED if filesystem.mode & 0o002 else Status.READY
         report.checks.append(Check("Directory mode", mode_status, f"{filesystem.mode:04o}"))
         if path.exists() and owner and group:
             current = path.stat()
