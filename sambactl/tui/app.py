@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import grp
 import os
+import pwd
 from pathlib import Path
 
 from prompt_toolkit.shortcuts import (
@@ -15,15 +17,20 @@ from prompt_toolkit.styles import Style
 
 from sambactl import __version__
 from sambactl.backup import BackupManager
-from sambactl.models import OperationResult
+from sambactl.models import OperationResult, ShareFilesystemPlan
 from sambactl.paths import backup_directory
 from sambactl.samba.config import SambaConfig
-from sambactl.samba.shares import TEMPLATES, ShareManager
+from sambactl.samba.shares import TEMPLATES, ShareManager, validate_share_name
 from sambactl.samba.users import SambaUserManager
 from sambactl.samba.validation import Validator
 from sambactl.setup import inspect_system
-from sambactl.system.filesystem import remove_empty_directory, safe_create_directory
-from sambactl.system.users import LinuxUserManager
+from sambactl.system.filesystem import (
+    remove_empty_directory,
+    safe_create_directory,
+    set_directory_metadata,
+)
+from sambactl.system.identity import lookup_group, lookup_user, parse_mode, validate_username
+from sambactl.system.users import LinuxUserManager, UserProvisioner
 from sambactl.transaction import ConfigTransaction
 
 STYLE = Style.from_dict(
@@ -74,15 +81,18 @@ class SambactlApp:
         )
         self.samba_users = SambaUserManager(runner)
         self.linux_users = LinuxUserManager(runner)
+        self.provisioner = UserProvisioner(self.linux_users, self.samba_users)
         self.status = "Ready"
 
     def run(self) -> int:
-        if self.info.missing_commands:
+        unavailable = [name for name, available in self.info.capabilities.items() if not available]
+        if unavailable:
             self._message(
                 "Dependency warning",
-                "Missing: "
-                + ", ".join(self.info.missing_commands)
-                + "\nAffected features may be unavailable.",
+                "Unavailable features:\n"
+                + "\n".join(f"- {name}" for name in unavailable)
+                + "\n\nMissing commands: "
+                + ", ".join(self.info.missing_commands),
             )
         while True:
             self._notice_external_change()
@@ -113,8 +123,13 @@ class SambactlApp:
             self.status = "Warning: smb.conf changed externally and was reloaded"
             self._message("External change", self.status)
 
+    def _refresh_latest(self) -> None:
+        """Refresh stale state before every submenu read or operation."""
+        self._notice_external_change()
+
     def _shares_menu(self) -> None:
         while True:
+            self._refresh_latest()
             config = SambaConfig.read(self.info.config_path)
             choices = [(name, name) for name in config.share_names()] + [
                 ("__create", "+ Create share"),
@@ -134,6 +149,7 @@ class SambactlApp:
                 self._share_actions(selected)
 
     def _share_actions(self, name: str) -> None:
+        self._refresh_latest()
         action = button_dialog(
             title=f"Share [{name}]",
             text=self._format_options(name),
@@ -154,6 +170,7 @@ class SambactlApp:
             self._delete_share(name)
 
     def _create_share(self) -> None:
+        self._refresh_latest()
         template = radiolist_dialog(
             title="New share",
             text="Choose a template",
@@ -163,23 +180,101 @@ class SambactlApp:
         if not template:
             return
         name = input_dialog(title="New share", text="Share name:", style=STYLE).run()
-        path_text = input_dialog(title="New share", text="Directory path:", style=STYLE).run()
-        if not name or not path_text or not Path(path_text).is_absolute():
-            self._message("Error", "A share name and absolute directory path are required")
+        try:
+            validate_share_name(name or "")
+        except ValueError as exc:
+            self._message("Error", str(exc))
+            return
+        values = dict(TEMPLATES[template])
+        defaults = {key: values.get(key, "") for key in COMMON_SHARE}
+        defaults["path"] = f"/srv/samba/{name}"
+        for key in COMMON_SHARE:
+            value = input_dialog(
+                title=f"New share [{name}]",
+                text=f"{key}:",
+                default=defaults[key],
+                style=STYLE,
+            ).run()
+            if value is None:
+                return
+            if value:
+                values[key] = value
+            else:
+                values.pop(key, None)
+        path_text = values.get("path", "")
+        if not path_text or not Path(path_text).is_absolute():
+            self._message("Error", "An absolute directory path is required")
+            return
+        filesystem = self._directory_plan(template, Path(path_text))
+        if filesystem is None:
+            return
+        if template == "Private Share" and not values.get("valid users"):
+            values["valid users"] = filesystem.owner
+        elif template == "Group Share":
+            values["force group"] = filesystem.group
+        elif template == "Public Read/Write":
+            values["force user"] = filesystem.owner
+            values["force group"] = filesystem.group
+        proposed = SambaConfig.read(self.info.config_path)
+        try:
+            ShareManager.create(proposed, name, values)
+            preflight = self.validator.preflight_share(
+                self.info.config_path, proposed.render(), filesystem, values
+            )
+        except (OSError, ValueError) as exc:
+            self._message("Preflight failed", str(exc))
+            return
+        summary = "\n".join(f"{key} = {value}" for key, value in values.items())
+        summary += (
+            f"\nowner = {filesystem.owner}\ngroup = {filesystem.group}"
+            f"\nmode = {filesystem.mode:04o}\n\nPreflight: {preflight.status.value}"
+        )
+        if not preflight.ok:
+            self._show_report("Share preflight", preflight, summary)
+            return
+        if template == "Public Read/Write" and not confirm(
+            "Public writable shares allow unauthenticated writes. Continue?", default=False
+        ):
+            return
+        if not confirm(f"Review proposed share:\n\n{summary}\n\nApply now?", default=True):
             return
         path = Path(path_text)
         created = False
+        original_metadata = None
+        try:
+            owner = lookup_user(filesystem.owner)
+            group = lookup_group(filesystem.group)
+            if owner is None or group is None:
+                raise ValueError("Selected owner or group no longer exists")
+        except ValueError as exc:
+            self._message("Error", str(exc))
+            return
         if not path.exists():
-            if not confirm(f"{path} does not exist. Create it with mode 2770?", default=True):
+            if not confirm(
+                f"Create {path} as {filesystem.owner}:{filesystem.group} "
+                f"mode {filesystem.mode:04o}?",
+                default=True,
+            ):
                 return
             try:
-                safe_create_directory(path)
+                safe_create_directory(path, owner.id, group.id, filesystem.mode)
                 created = True
+            except (OSError, ValueError) as exc:
+                self._message("Error", str(exc))
+                return
+        else:
+            current = path.stat()
+            original_metadata = (current.st_uid, current.st_gid, current.st_mode & 0o7777)
+            if not confirm(
+                f"Set {path} to {filesystem.owner}:{filesystem.group} mode {filesystem.mode:04o}?",
+                default=True,
+            ):
+                return
+            try:
+                set_directory_metadata(path, owner.id, group.id, filesystem.mode)
             except OSError as exc:
                 self._message("Error", str(exc))
                 return
-        values = dict(TEMPLATES[template])
-        values["path"] = str(path)
         result = self.transaction.apply(
             f"Create share [{name}]", lambda c: ShareManager.create(c, name, values)
         )
@@ -188,9 +283,72 @@ class SambactlApp:
                 remove_empty_directory(path)
             except OSError:
                 pass
+        elif not result.ok and original_metadata:
+            try:
+                set_directory_metadata(path, *original_metadata)
+            except OSError as exc:
+                result.message += (
+                    f" CRITICAL: directory metadata rollback failed ({exc}); manual intervention "
+                    "may be required."
+                )
         self._result(result)
 
+    def _directory_plan(self, template: str, path: Path) -> ShareFilesystemPlan | None:
+        default_owner, default_group, default_mode = "root", "root", "0755"
+        if template == "Private Share":
+            default_owner = (
+                input_dialog(
+                    title="Private share owner", text="Owning Linux/Samba user:", style=STYLE
+                ).run()
+                or ""
+            )
+            try:
+                validate_username(default_owner)
+                entry = pwd.getpwnam(default_owner)
+                default_group = grp.getgrgid(entry.pw_gid).gr_name
+            except (ValueError, KeyError) as exc:
+                self._message("Invalid owner", str(exc) or "User does not exist")
+                return None
+            default_mode = "0700"
+        elif template == "Group Share":
+            default_group = (
+                input_dialog(
+                    title="Share group", text="Linux group with write access:", style=STYLE
+                ).run()
+                or ""
+            )
+            try:
+                group_exists = lookup_group(default_group) is not None
+            except ValueError:
+                group_exists = False
+            if not group_exists:
+                self._message("Invalid group", f"Linux group {default_group!r} does not exist")
+                return None
+            default_mode = "2770"
+        elif template == "Public Read/Write":
+            default_owner, default_group, default_mode = "nobody", "nogroup", "2770"
+        owner = input_dialog(
+            title="Directory ownership", text="Owner:", default=default_owner, style=STYLE
+        ).run()
+        group = input_dialog(
+            title="Directory ownership", text="Group:", default=default_group, style=STYLE
+        ).run()
+        mode_text = input_dialog(
+            title="Directory permissions", text="Octal mode:", default=default_mode, style=STYLE
+        ).run()
+        if owner is None or group is None or mode_text is None:
+            return None
+        try:
+            validate_username(owner)
+            validate_username(group)
+            mode = parse_mode(mode_text)
+        except ValueError as exc:
+            self._message("Invalid ownership or mode", str(exc))
+            return None
+        return ShareFilesystemPlan(path, owner, group, mode)
+
     def _delete_share(self, name: str) -> None:
+        self._refresh_latest()
         path = SambaConfig.read(self.info.config_path).options(name).get("path")
         if not confirm(f"Remove share configuration [{name}]?", default=False):
             return
@@ -214,6 +372,7 @@ class SambactlApp:
                 )
 
     def _edit_section(self, name: str, fields: tuple[str, ...] | None) -> None:
+        self._refresh_latest()
         config = SambaConfig.read(self.info.config_path)
         current = config.options(name)
         if fields is None:
@@ -236,6 +395,7 @@ class SambactlApp:
         self._result(result)
 
     def _global_menu(self) -> None:
+        self._refresh_latest()
         action = button_dialog(
             title="Global Settings",
             text=self._format_options("global"),
@@ -247,6 +407,7 @@ class SambactlApp:
 
     def _users_menu(self) -> None:
         while True:
+            self._refresh_latest()
             users = self.samba_users.list() if self.runner.exists("pdbedit") else []
             action = button_dialog(
                 title="Samba Users",
@@ -265,8 +426,29 @@ class SambactlApp:
             ).run()
             if not action:
                 return
-            username = input_dialog(title="Samba user", text="Username:", style=STYLE).run()
+            if action == "create":
+                username = input_dialog(title="Samba user", text="Username:", style=STYLE).run()
+            else:
+                values = [
+                    (
+                        user.username,
+                        f"{user.username} — Linux account: "
+                        f"{self._linux_account_label(user.username)}",
+                    )
+                    for user in users
+                ]
+                username = radiolist_dialog(
+                    title="Select Samba user",
+                    text=f"Choose account to {action}",
+                    values=values,
+                    style=STYLE,
+                ).run()
             if not username:
+                continue
+            try:
+                validate_username(username)
+            except ValueError as exc:
+                self._message("Invalid username", str(exc))
                 continue
             if os.geteuid() != 0:
                 self._message("Permission denied", "User changes require root privileges")
@@ -290,21 +472,26 @@ class SambactlApp:
                 self._command_result(getattr(self.samba_users, action)(username), f"User {action}d")
 
     def _create_user(self, username: str) -> None:
+        try:
+            validate_username(username)
+        except ValueError as exc:
+            self._message("Invalid username", str(exc))
+            return
+        create_linux = False
         if not self.linux_users.exists(username):
-            if not confirm(
+            create_linux = confirm(
                 "Linux account is missing. Create a non-interactive system account?", default=True
-            ):
+            )
+            if not create_linux:
                 self._message("Cancelled", "Samba requires a corresponding Linux account")
-                return
-            result = self.linux_users.create(username)
-            if not result.ok:
-                self._message("Error", result.stderr)
                 return
         password = password_dialog(
             title="Samba password", text="Password (never logged or stored):", style=STYLE
         ).run()
-        if password:
-            self._command_result(self.samba_users.create(username, password), "Samba user created")
+        if not password:
+            self.status = "User creation cancelled; no accounts were changed"
+            return
+        self._result(self.provisioner.create(username, password, create_linux=create_linux))
 
     def _delete_user(self, username: str) -> None:
         if not confirm(f"Delete Samba user {username}?", default=False):
@@ -319,14 +506,12 @@ class SambactlApp:
             self._command_result(self.linux_users.delete(username), "Linux account deleted")
 
     def _validate_menu(self) -> None:
+        self._refresh_latest()
         report = self.validator.dry_run(self.info.config_path)
-        lines = [f"Overall: {report.status.value}", "", "No changes will be written."]
-        lines.extend(
-            f"{check.status.value}: {check.name} — {check.detail}" for check in report.checks
-        )
-        self._message("Validate / Dry Run", "\n".join(lines))
+        self._show_report("Validate / Dry Run", report, "No changes will be written.")
 
     def _backups_menu(self) -> None:
+        self._refresh_latest()
         action = button_dialog(
             title="Backups",
             text="Automatic backups retain the newest 10; manual backups are preserved.",
@@ -357,6 +542,7 @@ class SambactlApp:
             "settings, validation and backups.\n\n"
             f"Configuration: {self.info.config_path}\n"
             f"Samba: {self.info.samba_version}\n"
+            f"Mode: {self.info.service_mode}\n"
             f"Services: {', '.join(self.info.services) or 'none detected'}\n\n"
             "Configuration edits are validated, atomically installed, reloaded, and "
             "rolled back on failure. User passwords are passed directly to smbpasswd "
@@ -385,6 +571,20 @@ class SambactlApp:
                 f"{c.status.value}: {c.detail}" for c in result.report.checks
             )
         self._message("Success" if result.ok else "Error", detail)
+
+    def _show_report(self, title: str, report, prefix: str = "") -> None:
+        lines = [f"Overall: {report.status.value}", prefix, ""]
+        lines.extend(
+            f"{check.status.value.upper()}: {check.name} — {check.detail}"
+            for check in report.checks
+        )
+        self._message(title, "\n".join(lines))
+
+    def _linux_account_label(self, username: str) -> str:
+        try:
+            return "yes" if self.linux_users.exists(username) else "no"
+        except ValueError:
+            return "invalid account name"
 
     @staticmethod
     def _message(title: str, text: str) -> None:
