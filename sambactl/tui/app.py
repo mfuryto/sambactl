@@ -770,6 +770,9 @@ class SambactlApp:
 
     def _create_share(self) -> None:
         self._refresh_latest()
+        if not TEMPLATES:
+            self._message("New share", "No share templates are available.")
+            return
         form = None
         error = ""
         while True:

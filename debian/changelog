@@ -4,6 +4,7 @@ sambactl (0.1.0-3) unstable; urgency=medium
   * Add direct keyboard and mouse navigation throughout the interface.
   * Simplify share creation and split user creation from user management.
   * Improve account status, backup handling, validation, and small-screen behavior.
+  * Handle empty TUI selection lists without crashing.
 
  -- Sambactl contributors <maintainers@example.invalid>  Fri, 21 Aug 2026 23:30:00 +0200
 
