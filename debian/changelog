@@ -1,3 +1,9 @@
+sambactl (0.1.1-1) unstable; urgency=medium
+
+  * Support the older prompt_toolkit RadioList API shipped by Ubuntu 22.04.
+
+ -- Sambactl contributors <maintainers@example.invalid>  Sat, 22 Aug 2026 01:00:00 +0200
+
 sambactl (0.1.0-3) unstable; urgency=medium
 
   * Redesign the terminal interface with adaptive full-screen pages.
