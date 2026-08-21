@@ -13,8 +13,8 @@ class FakeLinux:
     def exists(self, username):
         return self.existed
 
-    def create(self, username):
-        self.created.append(username)
+    def create(self, username, *, create_home=False):
+        self.created.append((username, create_home))
         return CommandResult(
             ("useradd", username), 0 if self.create_ok else 1, stderr="useradd denied"
         )
@@ -42,7 +42,7 @@ def test_new_linux_user_is_removed_if_samba_creation_fails() -> None:
     linux = FakeLinux()
     result = UserProvisioner(linux, FakeSamba(False)).create("alice", "secret", create_linux=True)
     assert not result.ok
-    assert linux.created == ["alice"]
+    assert linux.created == [("alice", False)]
     assert linux.deleted == ["alice"]
     assert "rolled back" in result.message
 
@@ -112,3 +112,14 @@ def test_password_is_redacted_from_tool_output_and_exceptions(capsys) -> None:
     captured = capsys.readouterr()
     assert password not in captured.out
     assert password not in captured.err
+
+
+def test_home_directory_choice_is_forwarded_to_linux_creation() -> None:
+    linux = FakeLinux()
+
+    result = UserProvisioner(linux, FakeSamba(True)).create(
+        "alice", "secret", create_linux=True, create_home=True
+    )
+
+    assert result.ok
+    assert linux.created == [("alice", True)]

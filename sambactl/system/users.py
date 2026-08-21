@@ -20,11 +20,14 @@ class LinuxUserManager:
         except KeyError:
             return False
 
-    def create(self, username: str, *, interactive: bool = False) -> CommandResult:
+    def create(
+        self, username: str, *, interactive: bool = False, create_home: bool = False
+    ) -> CommandResult:
         validate_username(username)
         shell = "/bin/bash" if interactive else "/usr/sbin/nologin"
+        home_option = "--create-home" if create_home else "--no-create-home"
         return self.runner.run(
-            ("useradd", "--system", "--no-create-home", "--shell", shell, "--", username)
+            ("useradd", "--system", home_option, "--shell", shell, "--", username)
         )
 
     def delete(self, username: str) -> CommandResult:
@@ -39,14 +42,16 @@ class UserProvisioner:
         self.linux = linux
         self.samba = samba
 
-    def create(self, username: str, password: str, *, create_linux: bool) -> OperationResult:
+    def create(
+        self, username: str, password: str, *, create_linux: bool, create_home: bool = False
+    ) -> OperationResult:
         validate_username(username)
         existed = self.linux.exists(username)
         created_linux = False
         if not existed:
             if not create_linux:
                 return OperationResult(False, "A corresponding Linux account is required")
-            linux_result = self.linux.create(username)
+            linux_result = self.linux.create(username, create_home=create_home)
             if not linux_result.ok:
                 return OperationResult(
                     False, f"Linux account creation failed: {linux_result.stderr}"

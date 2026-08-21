@@ -2,7 +2,7 @@
 
 Sambactl is a menu-driven terminal application for practical Samba administration on modern Debian and Ubuntu systems. It edits the host's existing `smb.conf` surgically, validates changes with `testparm`, writes atomically, reloads detected Samba services, and rolls back automatically when installation or reload fails.
 
-> **Maturity:** 0.1.0 is the first release candidate. Test it in a staging environment and keep an independent system backup before production use.
+> **Maturity:** 0.1.0 is the first public release. Test it in a staging environment and keep an independent system backup before production use.
 
 ## Features
 
@@ -49,7 +49,7 @@ Build and install a Debian package:
 ```bash
 sudo apt install build-essential debhelper dh-python pybuild-plugin-pyproject python3-all python3-setuptools
 dpkg-buildpackage -us -uc -b
-sudo apt install ../sambactl_0.1.0-2_all.deb
+sudo apt install ../sambactl_0.1.0-3_all.deb
 sudo sambactl
 ```
 
