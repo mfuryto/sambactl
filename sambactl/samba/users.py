@@ -14,6 +14,9 @@ class SambaUser:
 
 
 def parse_pdbedit(output: str) -> list[SambaUser]:
+    if "Unix username:" in output:
+        return _parse_verbose_pdbedit(output)
+
     users = []
     for line in output.splitlines():
         parts = line.split(":")
@@ -26,13 +29,41 @@ def parse_pdbedit(output: str) -> list[SambaUser]:
     return users
 
 
+def _parse_verbose_pdbedit(output: str) -> list[SambaUser]:
+    """Parse ``pdbedit -L -v`` without requesting password hashes."""
+    users: list[SambaUser] = []
+    current: dict[str, str] = {}
+
+    def append_current() -> None:
+        username = current.get("Unix username")
+        if not username:
+            return
+        try:
+            uid = int(current.get("Unix user ID", ""))
+        except ValueError:
+            uid = None
+        flags = current.get("Account Flags", "")
+        users.append(SambaUser(username, uid, disabled="D" in flags.strip("[] ")))
+
+    for line in output.splitlines():
+        if ":" not in line:
+            continue
+        key, value = (part.strip() for part in line.split(":", 1))
+        if key == "Unix username" and current:
+            append_current()
+            current = {}
+        current[key] = value
+    append_current()
+    return users
+
+
 class SambaUserManager:
     def __init__(self, runner: CommandRunner) -> None:
         self.runner = runner
 
     def list(self) -> list[SambaUser]:
         # Deliberately omit -w: that mode emits password hashes.
-        result = self.runner.run(("pdbedit", "-L"))
+        result = self.runner.run(("pdbedit", "-L", "-v"))
         return parse_pdbedit(result.stdout) if result.ok else []
 
     def exists(self, username: str) -> bool:

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import importlib
-import inspect
 import sys
 
 import prompt_toolkit.shortcuts
@@ -14,33 +13,71 @@ def test_tui_import_does_not_require_password_dialog(monkeypatch) -> None:
 
     module = importlib.import_module("sambactl.tui.app")
 
-    assert module.input_dialog is prompt_toolkit.shortcuts.input_dialog
+    assert module.SambactlApp
 
 
-def test_supported_input_dialog_api_has_password_option() -> None:
-    parameters = inspect.signature(prompt_toolkit.shortcuts.input_dialog).parameters
-
-    assert "password" in parameters
-
-
-def test_password_input_is_masked_and_not_emitted(monkeypatch, capsys) -> None:
+def test_action_dialog_uses_vertical_radio_list(monkeypatch) -> None:
     from sambactl.tui import app
 
-    secret = "unique-dialog-secret"
-    captured_options = {}
+    captured = {}
 
-    class Dialog:
-        def run(self):
-            return secret
+    def fake_choice(title, text, values, *, cancel_text):
+        captured.update(title=title, text=text, values=values, cancel_text=cancel_text)
+        return "users"
 
-    def fake_input_dialog(**kwargs):
-        captured_options.update(kwargs)
-        return Dialog()
+    monkeypatch.setattr(app, "_choice_dialog", fake_choice)
 
-    monkeypatch.setattr(app, "input_dialog", fake_input_dialog)
+    selected = app._action_dialog(
+        "Menu",
+        "Choose an action",
+        [("Shares", "shares"), ("Users", "users")],
+        cancel_text="Exit",
+    )
 
-    assert app._password_input("Password", "Enter password:") == secret
-    assert captured_options["password"] is True
-    captured = capsys.readouterr()
-    assert secret not in captured.out
-    assert secret not in captured.err
+    assert selected == "users"
+    assert captured["values"] == [("shares", "Shares"), ("users", "Users")]
+    assert captured["cancel_text"] == "Exit"
+
+
+def test_confirmation_uses_supported_dialog_api(monkeypatch) -> None:
+    from sambactl.tui import app
+
+    captured = {}
+
+    def fake_choice(title, text, values, *, cancel_text):
+        captured.update(title=title, text=text, values=values, cancel_text=cancel_text)
+        return True
+
+    monkeypatch.setattr(app, "_choice_dialog", fake_choice)
+
+    assert app._confirm("Continue?", default=True)
+    assert captured["values"] == [(True, "Yes"), (False, "No")]
+
+
+def test_empty_backup_list_has_safe_placeholder() -> None:
+    from sambactl.tui import app
+
+    assert app._backup_choices([]) == [("", "No backups available")]
+
+
+def test_tui_keeps_alternate_screen_for_whole_session(monkeypatch) -> None:
+    from sambactl.tui import app
+
+    events = []
+
+    class Output:
+        def enter_alternate_screen(self):
+            events.append("enter")
+
+        def quit_alternate_screen(self):
+            events.append("quit")
+
+        def flush(self):
+            events.append("flush")
+
+    instance = object.__new__(app.SambactlApp)
+    monkeypatch.setattr(app, "create_output", lambda: Output())
+    monkeypatch.setattr(instance, "_run_session", lambda: 7)
+
+    assert instance.run() == 7
+    assert events == ["enter", "flush", "quit", "flush"]

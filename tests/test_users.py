@@ -11,6 +11,18 @@ def test_parse_samba_users() -> None:
     assert [(user.username, user.uid) for user in users] == [("alice", 1001), ("bob", 1002)]
 
 
+def test_parse_verbose_samba_user_status() -> None:
+    users = parse_pdbedit(
+        "Unix username: alice\nUnix user ID: 1001\nAccount Flags: [U ]\n\n"
+        "Unix username: bob\nUnix user ID: 1002\nAccount Flags: [DU ]\n"
+    )
+
+    assert [(user.username, user.uid, user.disabled) for user in users] == [
+        ("alice", 1001, False),
+        ("bob", 1002, True),
+    ]
+
+
 def test_linux_user_exists(monkeypatch) -> None:
     manager = LinuxUserManager(FakeRunner())
     monkeypatch.setattr(
@@ -37,3 +49,12 @@ def test_linux_user_commands_use_option_separator(monkeypatch) -> None:
     manager.delete("alice")
     assert runner.calls[0][-2:] == ("--", "alice")
     assert runner.calls[1][-2:] == ("--", "alice")
+
+
+def test_linux_user_can_create_home_directory() -> None:
+    runner = FakeRunner()
+
+    LinuxUserManager(runner).create("alice", create_home=True)
+
+    assert "--create-home" in runner.calls[0]
+    assert "--no-create-home" not in runner.calls[0]

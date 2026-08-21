@@ -2,7 +2,7 @@
 
 Sambactl is a menu-driven terminal application for practical Samba administration on modern Debian and Ubuntu systems. It edits the host's existing `smb.conf` surgically, validates changes with `testparm`, writes atomically, reloads detected Samba services, and rolls back automatically when installation or reload fails.
 
-> **Maturity:** 0.1.0 is the first release candidate. Test it in a staging environment and keep an independent system backup before production use.
+> **Maturity:** 0.1.0 is the first public release. Test it in a staging environment and keep an independent system backup before production use.
 
 ## Features
 

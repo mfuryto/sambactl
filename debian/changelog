@@ -1,8 +1,12 @@
 sambactl (0.1.0-3) unstable; urgency=medium
 
+  * Redesign the terminal interface with adaptive full-screen pages.
+  * Add direct keyboard and mouse navigation throughout the interface.
+  * Simplify share creation and split user creation from user management.
+  * Improve account status, backup handling, validation, and small-screen behavior.
   * Handle empty TUI selection lists without crashing.
 
- -- Sambactl contributors <maintainers@example.invalid>  Fri, 21 Aug 2026 09:00:00 +0200
+ -- Sambactl contributors <maintainers@example.invalid>  Fri, 21 Aug 2026 23:30:00 +0200
 
 sambactl (0.1.0-2) unstable; urgency=medium
 
