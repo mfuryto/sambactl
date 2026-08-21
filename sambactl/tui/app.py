@@ -182,15 +182,15 @@ def _run_dialog(application):
 
 def _navigation_list(values, *, default):
     """Render actions as a clean navigation rail instead of a radio-button form."""
-    return _enable_list_navigation(RadioList(
-        values,
-        default=default,
-        open_character=" ",
-        select_character="›",
-        close_character="",
-        container_style="class:sambactl",
-        show_scrollbar=len(values) > 8,
-    ))
+    # Ubuntu 22.04 ships a prompt_toolkit version whose RadioList constructor
+    # accepts only values/default. Configure optional presentation attributes
+    # after construction so the same code works on old and new releases.
+    widget = RadioList(values, default=default)
+    widget.open_character = " "
+    widget.select_character = "›"
+    widget.close_character = ""
+    widget.show_scrollbar = len(values) > 8
+    return _enable_list_navigation(widget)
 
 
 def _choice_dialog(
@@ -343,7 +343,6 @@ def _share_form(
         RadioList(
             [(name, name) for name in TEMPLATES],
             default=selected_template,
-            container_style="class:sambactl",
         )
     )
     boolean_keys = ("browseable", "read only", "guest ok")
@@ -550,7 +549,6 @@ def _edit_user_form(accounts: list[tuple[str, str]]) -> dict[str, str | bool] | 
         RadioList(
             accounts or [("", "No existing Samba users")],
             default="",
-            container_style="class:sambactl",
         )
     )
     password = TextArea(multiline=False, password=True, height=1)

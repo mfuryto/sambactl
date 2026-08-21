@@ -60,6 +60,27 @@ def test_empty_backup_list_has_safe_placeholder() -> None:
     assert app._backup_choices([]) == [("", "No backups available")]
 
 
+def test_navigation_list_supports_ubuntu_2204_radio_api(monkeypatch) -> None:
+    from prompt_toolkit.key_binding import KeyBindings
+
+    from sambactl.tui import app
+
+    captured = {}
+
+    class LegacyRadioList:
+        def __init__(self, values, default=None) -> None:
+            captured.update(values=values, default=default)
+            self.control = type("Control", (), {"key_bindings": KeyBindings()})()
+
+    monkeypatch.setattr(app, "RadioList", LegacyRadioList)
+
+    widget = app._navigation_list([("shares", "Shares")], default="shares")
+
+    assert captured == {"values": [("shares", "Shares")], "default": "shares"}
+    assert widget.open_character == " "
+    assert widget.select_character == "›"
+
+
 def test_tui_keeps_alternate_screen_for_whole_session(monkeypatch) -> None:
     from sambactl.tui import app
 
