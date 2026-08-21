@@ -1,3 +1,9 @@
+sambactl (0.1.0-3) unstable; urgency=medium
+
+  * Handle empty TUI selection lists without crashing.
+
+ -- Sambactl contributors <maintainers@example.invalid>  Fri, 21 Aug 2026 09:00:00 +0200
+
 sambactl (0.1.0-2) unstable; urgency=medium
 
   * Use the prompt_toolkit 3.0-compatible masked input dialog API.

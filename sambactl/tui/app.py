@@ -132,6 +132,25 @@ class SambactlApp:
         """Refresh stale state before every submenu read or operation."""
         self._notice_external_change()
 
+    def _select(
+        self,
+        *,
+        title: str,
+        text: str,
+        values: list[tuple[str, str]],
+        empty_message: str,
+    ) -> str | None:
+        """Open a radio list only when prompt_toolkit has something to select."""
+        if not values:
+            self._message(title, empty_message)
+            return None
+        return radiolist_dialog(
+            title=title,
+            text=text,
+            values=values,
+            style=STYLE,
+        ).run()
+
     def _shares_menu(self) -> None:
         while True:
             self._refresh_latest()
@@ -140,12 +159,12 @@ class SambactlApp:
                 ("__create", "+ Create share"),
                 ("__back", "Back"),
             ]
-            selected = radiolist_dialog(
+            selected = self._select(
                 title="Shares",
                 text="Select a share",
                 values=[(value, label) for value, label in choices],
-                style=STYLE,
-            ).run()
+                empty_message="No share actions are available.",
+            )
             if not selected or selected == "__back":
                 return
             if selected == "__create":
@@ -176,12 +195,12 @@ class SambactlApp:
 
     def _create_share(self) -> None:
         self._refresh_latest()
-        template = radiolist_dialog(
+        template = self._select(
             title="New share",
             text="Choose a template",
             values=[(name, name) for name in TEMPLATES],
-            style=STYLE,
-        ).run()
+            empty_message="No share templates are available.",
+        )
         if not template:
             return
         name = input_dialog(title="New share", text="Share name:", style=STYLE).run()
@@ -441,12 +460,12 @@ class SambactlApp:
                     )
                     for user in users
                 ]
-                username = radiolist_dialog(
+                username = self._select(
                     title="Select Samba user",
                     text=f"Choose account to {action}",
                     values=values,
-                    style=STYLE,
-                ).run()
+                    empty_message="No Samba users are available.",
+                )
             if not username:
                 continue
             try:
@@ -529,12 +548,12 @@ class SambactlApp:
                     self._message("Error", str(exc))
         elif action == "restore":
             backups = self.backups.list()
-            selected = radiolist_dialog(
+            selected = self._select(
                 title="Restore",
                 text="Select a backup",
                 values=[(str(p), p.name) for p in backups],
-                style=STYLE,
-            ).run()
+                empty_message="No backups are available yet.",
+            )
             if selected and confirm(f"Restore {Path(selected).name}?", default=False):
                 self._result(self.transaction.restore(Path(selected)))
 
