@@ -1,0 +1,68 @@
+name: Bug report
+description: Report reproducible incorrect behavior in the latest release
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Do not include passwords, hashes, private
+        configuration, hostnames, IP addresses, or other sensitive data.
+        Security vulnerabilities must be reported privately through the
+        repository Security tab instead of this form.
+  - type: input
+    id: version
+    attributes:
+      label: Sambactl version
+      placeholder: "0.1.1-1"
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system
+      placeholder: "Ubuntu 22.04.5 LTS"
+    validations:
+      required: true
+  - type: input
+    id: samba
+    attributes:
+      label: Samba and Python versions
+      placeholder: "Samba 4.x; Python 3.10"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest reliable sequence that triggers the problem.
+      placeholder: |
+        1. Run ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and redacted logs
+      render: shell
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I tested the latest release or explained why I could not.
+          required: true
+        - label: I removed credentials, hashes, private configuration, and identifying data.
+          required: true
+        - label: This is not a privately reportable security vulnerability.
+          required: true

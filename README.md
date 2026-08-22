@@ -183,8 +183,9 @@ temporary fixtures and mock system-changing commands.
 
 ## Contributing
 
-Bug reports and focused pull requests are welcome. Before submitting a change,
-run:
+Bug reports and focused pull requests are welcome. Please read
+[CONTRIBUTING.md](CONTRIBUTING.md), open an issue for material changes, and use
+the pull request template. Before submitting a change, run:
 
 ```bash
 ruff check .
@@ -194,6 +195,9 @@ pytest --cov=sambactl
 Please include the operating-system version, Samba version, and relevant error
 output in bug reports. Never include passwords, password hashes, or private
 configuration data.
+
+Report suspected vulnerabilities privately according to
+[SECURITY.md](SECURITY.md), not through public issues.
 
 ## License
 
