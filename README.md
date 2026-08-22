@@ -1,67 +1,156 @@
 # Sambactl
 
-Sambactl is a menu-driven terminal application for practical Samba administration on modern Debian and Ubuntu systems. It edits the host's existing `smb.conf` surgically, validates changes with `testparm`, writes atomically, reloads detected Samba services, and rolls back automatically when installation or reload fails.
+[![CI](https://github.com/mfuryto/sambactl/actions/workflows/ci.yml/badge.svg)](https://github.com/mfuryto/sambactl/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/mfuryto/sambactl)](https://github.com/mfuryto/sambactl/releases/latest)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-> **Maturity:** 0.1.0 is the first public release. Test it in a staging environment and keep an independent system backup before production use.
+**Safe, menu-driven Samba administration for Debian and Ubuntu servers.**
 
-## Features
+Sambactl provides a full-screen terminal interface for managing Samba shares,
+local users, global settings, validation, and backups. It is designed for SSH
+sessions and headless servers, with both keyboard and mouse navigation.
 
-- `prompt_toolkit` TUI designed for headless machines and SSH: dark background, blue selection, clear result dialogs, and a persistent last-action status.
-- Automatic active configuration discovery through `smbd -b`, with conventional-path fallback and `SAMBACTL_CONFIG` override.
-- Existing share discovery, view/create/edit/delete, common templates, and arbitrary advanced option editing.
-- Line-oriented configuration editing that retains comments, ordering, custom sections, unknown directives, and formatting wherever the edited line does not require change.
-- Common and advanced `[global]` setting editing without replacing unrelated options.
-- Samba user listing, creation, password change, enable/disable, status, and deletion through `pdbedit`/`smbpasswd`.
-- Recommended creation of non-interactive Linux accounts where needed; Linux account deletion is always a separate confirmation and never removes home/data.
-- Automatic timestamped backups beside the detected config, default retention of 10 automatic backups, and never-rotated preserved backups.
-- Dry-run readiness report covering syntax, paths, safe write access, service detection, and reload prerequisites.
-- Operation-specific share preflight covering the proposed config, owner/group/mode, paths, referenced accounts, backup access, and reload capability.
-- External-change detection, process locking, preflight/post-write validation, metadata-preserving atomic replacement, automatic reload, and rollback.
-- Startup dependency and Samba/service detection. Missing tools degrade affected features with a warning.
+Instead of replacing `smb.conf`, Sambactl edits the existing configuration,
+preserves unrelated content, validates every proposed change with `testparm`,
+writes atomically, reloads the detected Samba service, and rolls back when an
+operation fails.
 
-`prompt_toolkit` was chosen because it is mature, packaged by Debian/Ubuntu, lightweight, SSH-friendly, and provides accessible dialogs without requiring a desktop.
+> [!IMPORTANT]
+> Sambactl changes system configuration and user accounts. Test it in a staging
+> environment first and maintain an independent backup of production systems.
 
-## Interface
+## Highlights
 
-```text
-┌────────────── Sambactl 0.1.0 ──────────────┐
-│ Samba administration                       │
-│ Config: /etc/samba/smb.conf                │
-│                                            │
-│ [Shares] [Users] [Global Settings]         │
-│ [Validate / Dry Run] [Backups / Restore]   │
-│ [Help / About] [Exit]                      │
-│                                            │
-│ Status: Ready                              │
-└────────────────────────────────────────────┘
-```
+- Adaptive full-screen TUI built with `prompt_toolkit`
+- Works over SSH without a desktop environment
+- Mouse, arrow-key, Tab, and Enter navigation
+- Guided share templates with safe permission defaults
+- Separate workflows for creating and managing Samba users
+- Common and advanced `[global]` configuration editing
+- Automatic validation, backup, reload, and rollback
+- Preserves comments, ordering, unknown directives, ownership, mode, ACL xattrs,
+  and symlink targets where applicable
+- Detects external changes before writing
+- Read-only server readiness check with `sambactl --check`
+- Tested compatibility with Ubuntu 22.04 LTS and modern Debian/Ubuntu releases
 
-## Requirements and platforms
+## Quick start
 
-Supported targets are maintained Debian and Ubuntu releases with Python 3.10+, Samba (`testparm`, `smbpasswd`, `pdbedit`), systemd, and `python3-prompt-toolkit`. Read-only inspection can run without root where permissions permit; system changes require root.
-
-Sambactl manages the classic file-backed `smb.conf` and local Samba passdb workflow. Active Directory domain-controller deployments require extra operational testing; include-generated configuration is not rewritten in this release.
-
-## Install and run
-
-Build and install a Debian package:
+Download the latest Debian package from
+[GitHub Releases](https://github.com/mfuryto/sambactl/releases/latest):
 
 ```bash
-sudo apt install build-essential debhelper dh-python pybuild-plugin-pyproject python3-all python3-setuptools
-dpkg-buildpackage -us -uc -b
-sudo apt install ../sambactl_0.1.1-1_all.deb
-sudo sambactl
+wget https://github.com/mfuryto/sambactl/releases/download/v0.1.1/sambactl_0.1.1-1_all.deb
+sudo apt install ./sambactl_0.1.1-1_all.deb
 ```
 
-Read-only host inspection is available without starting the TUI and never creates state or backups:
+Run a read-only readiness check:
 
 ```bash
 sudo sambactl --check
 ```
 
-The first run detects Samba, services, dependencies and the active config; creates the backup directory when privileged; records minimal setup state in `/var/lib/sambactl/state.json`; and enters the main menu. A separate wizard is not required.
+Start the interactive interface:
 
-For development:
+```bash
+sudo sambactl
+```
+
+APT installs the required runtime dependencies, including
+`python3-prompt-toolkit`, `samba-common-bin`, and `systemd`.
+
+## Interface
+
+```text
+┌────────────────────── Sambactl 0.1.1 ──────────────────────┐
+│ Samba administration                                      │
+│ Config: /etc/samba/smb.conf                               │
+│ Status: Ready                                              │
+│                                                            │
+│ Shares            Create and manage shared folders         │
+│ New user          Create a Samba login                     │
+│ Edit users        Passwords, access, details and deletion  │
+│ Global settings   Server-wide Samba options                │
+│ Validate          Check configuration before applying      │
+│ Backups           Create or restore snapshots              │
+│ Help              Usage and version information            │
+│                                                            │
+│                         [ Exit ]                            │
+└────────────────────────────────────────────────────────────┘
+```
+
+Use the mouse, `Tab`/`Shift+Tab`, or arrow keys to navigate. Press `Enter` to
+activate a focused button. Within lists, `↑` and `↓` change the selected item;
+within text fields, `←` and `→` move the cursor.
+
+## What Sambactl manages
+
+### Shares
+
+- Discover, inspect, create, edit, and remove shares
+- Start from private, group, public read-only, or public read/write templates
+- Configure paths, users, groups, ownership, and optional advanced masks
+- Validate the complete proposed configuration before writing
+- Keep filesystem deletion separate and limited to empty directories
+
+### Users
+
+- Create matching Linux and Samba accounts
+- Optionally create a home directory for new Linux accounts
+- Change Samba passwords
+- Allow or block Samba login without deleting files or Linux accounts
+- View account status and delete Samba accounts
+
+Passwords are passed to `smbpasswd -s` over standard input. They are never
+placed in command arguments, persisted by Sambactl, or written to logs.
+
+### Configuration and recovery
+
+- Edit commonly used or arbitrary `[global]` options
+- Validate syntax, paths, permissions, identities, services, and reload ability
+- Create timestamped automatic or named preserved backups
+- Restore backups through the same validated transaction path
+
+## Safety model
+
+Each configuration transaction:
+
+1. Detects whether `smb.conf` changed externally.
+2. Reads the latest configuration and validates the complete proposed file.
+3. Creates a backup and preserves filesystem metadata.
+4. Atomically replaces the resolved configuration target.
+5. Validates the installed file and reloads the detected Samba service.
+6. Restores, revalidates, and reloads the previous configuration on failure.
+
+Automatic backups are stored beside the active configuration, normally in
+`/etc/samba/backups/`. The newest ten automatic backups are retained. Named
+manual backups are preserved until explicitly removed outside Sambactl.
+
+## Requirements
+
+- Debian or Ubuntu
+- Python 3.10 or newer
+- Samba tools: `testparm`, `smbpasswd`, and `pdbedit`
+- systemd
+- An interactive terminal
+- Root privileges for configuration or account changes
+
+Read-only inspection can run without root when the relevant files and commands
+are accessible. The TUI manages classic file-backed `smb.conf` configurations
+and the local Samba passdb workflow.
+
+## Build from source
+
+Build a Debian package:
+
+```bash
+sudo apt install build-essential debhelper dh-python pybuild-plugin-pyproject python3-all python3-setuptools
+dpkg-buildpackage -us -uc -b
+sudo apt install ../sambactl_0.1.1-1_all.deb
+```
+
+Development setup:
 
 ```bash
 python3 -m venv .venv
@@ -70,29 +159,42 @@ python -m pip install -e '.[dev]'
 ruff check .
 pytest --cov=sambactl
 python -m build
+```
+
+For safe development against a disposable configuration:
+
+```bash
 SAMBACTL_CONFIG=/path/to/test/smb.conf sambactl
 ```
 
-Never point development runs at production configuration. Tests only use temporary fixtures and mock every system-changing command.
-
-## Safety model
-
-Every configuration edit re-checks the live file fingerprint, reads it again, validates the proposed complete file, creates a backup, atomically replaces the resolved config target while retaining its symlink, mode, ownership, extended attributes and POSIX ACL xattrs, validates the installed file, and reloads the active Samba service. Rollback is reported as successful only after the original file is restored, revalidated, reloaded, and fingerprinted. No normal manual reload action exists.
-
-Automatic backups for `/etc/samba/smb.conf` live in `/etc/samba/backups/` as `smb.conf.YYYY-MM-DD_HH-MM-SS.bak`. The newest ten are retained. Names beginning `manual-` are preserved indefinitely. Restores use the same transaction and rollback path.
-
-When creating a share directory, Sambactl proposes mode `2770`; it never chooses world-writable permissions. Share removal first deletes only configuration. Filesystem removal is separately confirmed and limited to empty directories.
-
-Passwords are collected with hidden input and sent only to `smbpasswd -s` over stdin. They are never passed in command arguments, persisted, or logged.
+Never point development runs at production configuration. Automated tests use
+temporary fixtures and mock system-changing commands.
 
 ## Known limitations
 
-- The TUI edits one advanced key at a time; it intentionally does not attempt to model every Samba option.
-- Direct `include = ...` files are preserved but their shares are not expanded into the main share list.
-- Service verification is based on successful `systemctl reload`; deeper client connectivity checks remain manual.
-- Linux account creation uses safe Samba-only system-account defaults and does not yet offer a full interactive-account customization screen.
-- Full behavior still needs manual verification across standalone, member-server, and AD DC installations and across supported distribution releases.
+- Advanced editing intentionally exposes one `smb.conf` option at a time rather
+  than attempting to model every Samba directive.
+- `include = ...` directives are preserved, but shares defined in included files
+  are not expanded into the main share list.
+- Service verification confirms a successful `systemctl reload`; client-level
+  connectivity tests remain an administrator responsibility.
+- Active Directory domain-controller deployments require additional operational
+  testing before production use.
+
+## Contributing
+
+Bug reports and focused pull requests are welcome. Before submitting a change,
+run:
+
+```bash
+ruff check .
+pytest --cov=sambactl
+```
+
+Please include the operating-system version, Samba version, and relevant error
+output in bug reports. Never include passwords, password hashes, or private
+configuration data.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Sambactl is available under the [MIT License](LICENSE).
