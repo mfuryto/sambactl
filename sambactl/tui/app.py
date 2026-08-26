@@ -54,23 +54,29 @@ from sambactl.transaction import ConfigTransaction
 
 STYLE = Style.from_dict(
     {
-        "sambactl": "bg:#20242b #ffffff",
-        "frame": "#ffffff bg:#20242b",
-        "frame.border": "#64748b bg:#20242b",
-        "frame.label": "#ffffff bg:#20242b bold",
-        "button": "#ffffff bg:#2952a3",
-        "button.focused": "#ffffff bg:#177ddc bold",
-        "text-area": "#f8fafc bg:#111827",
-        "text-area.focused": "#ffffff bg:#1e3a5f",
-        "input-field": "#f8fafc bg:#111827",
-        "input-field focused": "#ffffff bg:#1e3a5f",
-        "radio": "#dbeafe bg:#20242b",
-        "radio-selected": "#7dd3fc bg:#20242b bold underline",
-        "radio-checked": "#7dd3fc bg:#20242b bold",
-        "radio-list": "bg:#20242b",
-        "lead": "#cbd5e1 bg:#20242b",
-        "hint": "#94a3b8 bg:#20242b italic",
-        "section": "#7dd3fc bg:#20242b bold",
+        "sambactl": "bg:#111827 #e5e7eb",
+        "frame": "#e5e7eb bg:#111827",
+        "frame.border": "#334155 bg:#111827",
+        "frame.label": "#f8fafc bg:#111827 bold",
+        "app-header": "#f8fafc bg:#0f172a bold",
+        "page-title": "#7dd3fc bg:#0f172a bold",
+        "status-line": "#cbd5e1 bg:#1e293b",
+        "action-bar": "#e5e7eb bg:#0f172a",
+        "footer": "#94a3b8 bg:#0f172a",
+        "card": "#e5e7eb bg:#1e293b",
+        "button": "#e5e7eb bg:#334155",
+        "button.focused": "#ffffff bg:#0284c7 bold",
+        "text-area": "#f8fafc bg:#0f172a",
+        "text-area.focused": "#ffffff bg:#075985",
+        "input-field": "#f8fafc bg:#0f172a",
+        "input-field focused": "#ffffff bg:#075985",
+        "radio": "#dbeafe bg:#111827",
+        "radio-selected": "#7dd3fc bg:#111827 bold underline",
+        "radio-checked": "#7dd3fc bg:#111827 bold",
+        "radio-list": "bg:#111827",
+        "lead": "#cbd5e1 bg:#111827",
+        "hint": "#94a3b8 bg:#111827 italic",
+        "section": "#7dd3fc bg:#111827 bold",
         "error": "#ff5555",
     }
 )
@@ -127,7 +133,7 @@ class _PersistentScreenOutput:
 
 
 def _page(title: str, body, buttons: list[Button]):
-    """Create a full-terminal adaptive page with persistent navigation keys."""
+    """Create a UserDock-inspired full-terminal page using old prompt_toolkit APIs."""
     bindings = KeyBindings()
     bindings.add("tab")(focus_next)
     bindings.add("s-tab")(focus_previous)
@@ -144,11 +150,29 @@ def _page(title: str, body, buttons: list[Button]):
     return Frame(
         HSplit(
             [
+                Box(
+                    HSplit(
+                        [
+                            Label(f"  SAMBACTL  {__version__}", style="class:app-header"),
+                            Label(f"  {title}", style="class:page-title"),
+                        ]
+                    ),
+                    height=Dimension.exact(2),
+                    style="class:app-header",
+                ),
                 Box(body, padding=1),
-                Box(VSplit(buttons, padding=2), height=Dimension.exact(3)),
+                Box(
+                    VSplit(buttons, padding=2),
+                    height=Dimension.exact(3),
+                    style="class:action-bar",
+                ),
+                Box(
+                    Label("  ↑↓ navigate   ←→ move   Enter select   Tab next"),
+                    height=Dimension.exact(1),
+                    style="class:footer",
+                ),
             ]
         ),
-        title=title,
         # Do not use prompt_toolkit's ``dialog`` classes here. Its built-in
         # fallback theme paints dialog backgrounds bright purple, which can
         # leak into otherwise unstyled space below the frame title.
@@ -265,17 +289,21 @@ def _action_dialog(
 def _main_menu(title: str, text: str) -> str | None:
     """Present top-level destinations as directly clickable buttons."""
     destinations = [
-        ("Shares", "Create and manage shared folders", "shares"),
-        ("New user", "Create a Samba login", "new_users"),
-        ("Edit users", "Passwords, access, details and deletion", "edit_users"),
-        ("Global settings", "Server-wide Samba options", "global"),
-        ("Validate", "Check configuration before applying", "validate"),
-        ("Backups", "Create or restore snapshots", "backups"),
-        ("Help", "Usage and version information", "help"),
+        ("Shares", "Shared folders, access and permissions", "shares", "MANAGE"),
+        ("New user", "Create a Samba login", "new_users", "MANAGE"),
+        ("Edit users", "Passwords, groups, access and deletion", "edit_users", "MANAGE"),
+        ("Global settings", "Server-wide Samba configuration", "global", "SERVER"),
+        ("Validate", "Read-only configuration health check", "validate", "SERVER"),
+        ("Backups", "Create and restore configuration snapshots", "backups", "SERVER"),
+        ("Help", "System information and usage", "help", "ABOUT"),
     ]
     buttons = []
     rows = []
-    for label, description, value in destinations:
+    section = ""
+    for label, description, value, destination_section in destinations:
+        if destination_section != section:
+            section = destination_section
+            rows.append(Label(section, style="class:section"))
         button = Button(
             label,
             handler=lambda selected=value: get_app().exit(result=selected),
@@ -285,15 +313,20 @@ def _main_menu(title: str, text: str) -> str | None:
         )
         _enable_arrow_navigation(button)
         buttons.append(button)
-        rows.append(VSplit([button, Label(description, style="class:lead")], padding=2))
+        rows.append(
+            Box(
+                VSplit([button, Label(description, style="class:lead")], padding=2),
+                padding=1,
+                style="class:card",
+            )
+        )
 
     page = _page(
         title,
         HSplit(
             [
-                Box(Label(text, style="class:lead"), padding_bottom=1),
+                Box(Label(text, style="class:status-line"), padding=1, style="class:status-line"),
                 HSplit(rows, padding=1),
-                Label("Click a button, or use Tab and Enter.", style="class:hint"),
             ]
         ),
         [
@@ -356,6 +389,21 @@ def _group_share_settings(group: str) -> dict[str, str]:
         "force create mode": "0660",
         "force directory mode": "2770",
     }
+
+
+def _share_list_label(name: str, options: dict[str, str]) -> str:
+    """Format a compact table-like share row for the overview."""
+    if options.get("guest ok", "no").lower() == "yes":
+        access = "Public"
+    elif options.get("force group"):
+        access = f"Group: {options['force group']}"
+    elif options.get("valid users"):
+        access = options["valid users"]
+    else:
+        access = "Authenticated"
+    mode = "Read only" if options.get("read only", "yes").lower() == "yes" else "Read/write"
+    path = options.get("path", "No path")
+    return f"{name:<18}  {mode:<10}  {access:<20}  {path}"
 
 
 def _confirm(text: str, *, default: bool = False) -> bool:
@@ -817,10 +865,13 @@ class SambactlApp:
         while True:
             self._refresh_latest()
             config = SambaConfig.read(self.info.config_path)
-            choices = [(name, name) for name in config.share_names()]
+            choices = [
+                (name, _share_list_label(name, config.options(name)))
+                for name in config.share_names()
+            ]
             selected = _choice_dialog(
                 "Shares",
-                "Select a share",
+                "NAME                ACCESS      WHO                   PATH",
                 [(value, label) for value, label in choices]
                 or [("", "No shares configured")],
                 extra_buttons=[("Create share", "__create")],
