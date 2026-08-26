@@ -58,3 +58,18 @@ def test_linux_user_can_create_home_directory() -> None:
 
     assert "--create-home" in runner.calls[0]
     assert "--no-create-home" not in runner.calls[0]
+
+
+def test_linux_user_can_be_added_to_multiple_groups() -> None:
+    runner = FakeRunner()
+
+    LinuxUserManager(runner).add_to_groups("alice", ["editors", "media"])
+
+    assert runner.calls[0] == (
+        "usermod",
+        "--append",
+        "--groups",
+        "editors,media",
+        "--",
+        "alice",
+    )

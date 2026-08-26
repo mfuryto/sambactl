@@ -3,7 +3,13 @@ import pwd
 
 import pytest
 
-from sambactl.system.identity import lookup_group, lookup_user, parse_mode, validate_username
+from sambactl.system.identity import (
+    lookup_group,
+    lookup_user,
+    parse_mode,
+    shared_group_names,
+    validate_username,
+)
 
 
 @pytest.mark.parametrize("name", ["alice", "build-user", "service_account", "machine$"])
@@ -39,3 +45,17 @@ def test_identity_lookups_return_ids_or_none(monkeypatch) -> None:
     monkeypatch.setattr(grp, "getgrnam", lambda name: (_ for _ in ()).throw(KeyError(name)))
     assert lookup_user("missing") is None
     assert lookup_group("missing") is None
+
+
+def test_shared_groups_exclude_system_and_private_user_groups(monkeypatch) -> None:
+    users = [type("Passwd", (), {"pw_name": "alice", "pw_gid": 1001})()]
+    groups = [
+        type("Group", (), {"gr_name": "adm", "gr_gid": 4})(),
+        type("Group", (), {"gr_name": "alice", "gr_gid": 1001})(),
+        type("Group", (), {"gr_name": "media", "gr_gid": 1010})(),
+        type("Group", (), {"gr_name": "editors", "gr_gid": 1005})(),
+    ]
+    monkeypatch.setattr(pwd, "getpwall", lambda: users)
+    monkeypatch.setattr(grp, "getgrall", lambda: groups)
+
+    assert shared_group_names() == ["editors", "media"]

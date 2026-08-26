@@ -16,7 +16,16 @@ from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.output.defaults import create_output
 from prompt_toolkit.shortcuts import clear
 from prompt_toolkit.styles import Style
-from prompt_toolkit.widgets import Box, Button, Checkbox, Frame, Label, RadioList, TextArea
+from prompt_toolkit.widgets import (
+    Box,
+    Button,
+    Checkbox,
+    CheckboxList,
+    Frame,
+    Label,
+    RadioList,
+    TextArea,
+)
 
 from sambactl import __version__
 from sambactl.backup import BackupManager
@@ -33,7 +42,13 @@ from sambactl.system.filesystem import (
     safe_create_directory,
     set_directory_metadata,
 )
-from sambactl.system.identity import lookup_group, lookup_user, parse_mode, validate_username
+from sambactl.system.identity import (
+    lookup_group,
+    lookup_user,
+    parse_mode,
+    shared_group_names,
+    validate_username,
+)
 from sambactl.system.users import LinuxUserManager, UserProvisioner
 from sambactl.transaction import ConfigTransaction
 
@@ -515,12 +530,19 @@ def _fields_form(
     )
 
 
-def _new_user_form() -> dict[str, str | bool] | None:
+def _new_user_form(groups: list[str]) -> dict[str, str | bool | list[str]] | None:
     """Collect only the information needed to create a Samba user."""
     username = TextArea(multiline=False, height=1)
     password = TextArea(multiline=False, password=True, height=1)
     create_linux = _checkbox("Create the required Linux account if it is missing")
     create_home = _checkbox("Create a home directory for the new Linux account")
+    group_choices = (
+        _enable_list_navigation(
+            CheckboxList([(group, group) for group in groups], default_values=[])
+        )
+        if groups
+        else None
+    )
 
     def create() -> None:
         get_app().exit(
@@ -529,6 +551,7 @@ def _new_user_form() -> dict[str, str | bool] | None:
                 "password": password.text,
                 "create_linux": create_linux.checked,
                 "create_home": create_home.checked,
+                "groups": list(group_choices.current_values) if group_choices else [],
             }
         )
 
@@ -545,6 +568,10 @@ def _new_user_form() -> dict[str, str | bool] | None:
                 VSplit([Label("Samba password", width=18), password], padding=1),
                 create_linux,
                 create_home,
+                Label("Optional shared groups", style="class:section"),
+                Box(group_choices, height=min(5, len(groups)))
+                if group_choices
+                else Label("No shared Linux groups are available.", style="class:hint"),
             ],
             padding=1,
         ),
@@ -556,6 +583,37 @@ def _new_user_form() -> dict[str, str | bool] | None:
             style=STYLE,
             mouse_support=True,
         )
+    )
+
+
+def _group_access_form(groups: list[str], current: str = "") -> str | None:
+    """Choose one shared Linux group for an existing share."""
+    choices = _enable_list_navigation(
+        RadioList(
+            [(group, group) for group in groups],
+            default=current if current in groups else None,
+        )
+    )
+    page = _page(
+        "Group access",
+        HSplit(
+            [
+                Label(
+                    "Choose the shared Linux group whose members may use this share. Personal "
+                    "user groups and system groups are hidden.",
+                    style="class:lead",
+                ),
+                Box(choices, height=min(8, len(groups))),
+            ],
+            padding=1,
+        ),
+        [
+            Button("Save", handler=lambda: get_app().exit(result=choices.current_value)),
+            Button("Cancel", handler=lambda: get_app().exit()),
+        ],
+    )
+    return _run_dialog(
+        Application(layout=Layout(page, focused_element=choices), style=STYLE, mouse_support=True)
     )
 
 
@@ -789,18 +847,16 @@ class SambactlApp:
         self._refresh_latest()
         current = SambaConfig.read(self.info.config_path).options(name)
         current_group = current.get("force group", "")
-        form = _fields_form(
-            f"Group access [{name}]",
-            [("group", "Linux group", current_group)],
-            help_text=(
-                "Members of this Linux group will be allowed to open and change new files in "
-                "the share. This updates Samba settings for new content; existing files and "
-                "folders keep their current permissions."
-            ),
-        )
-        if not form:
+        groups = shared_group_names()
+        if not groups:
+            self._message(
+                "No shared groups",
+                "Create a shared Linux group before configuring group access.",
+            )
             return
-        group = form["group"]
+        group = _group_access_form(groups, current_group)
+        if not group:
+            return
         try:
             if lookup_group(group) is None:
                 raise ValueError(f"Linux group {group!r} does not exist")
@@ -1031,7 +1087,7 @@ class SambactlApp:
             self._edit_section("global", COMMON_GLOBAL if action == "common" else None)
 
     def _new_users_menu(self) -> None:
-        form = _new_user_form()
+        form = _new_user_form(shared_group_names())
         if form:
             self._create_user(form)
 
@@ -1081,7 +1137,7 @@ class SambactlApp:
             else:
                 self._command_result(getattr(self.samba_users, action)(username), f"User {action}d")
 
-    def _create_user(self, form: dict[str, str | bool]) -> None:
+    def _create_user(self, form: dict[str, str | bool | list[str]]) -> None:
         if os.geteuid() != 0:
             self._message("Permission denied", "Creating users requires root privileges")
             return
@@ -1106,6 +1162,7 @@ class SambactlApp:
                 password,
                 create_linux=create_linux,
                 create_home=create_home,
+                groups=[str(group) for group in form.get("groups", [])],
             )
         )
 
