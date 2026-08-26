@@ -22,7 +22,7 @@ operation fails.
 
 ## Highlights
 
-- UserDock-inspired adaptive full-screen TUI built with `prompt_toolkit`
+- Adaptive full-screen TUI built with `prompt_toolkit`
 - Works over SSH without a desktop environment
 - Mouse, arrow-key, Tab, and Enter navigation
 - Guided share templates with safe permission defaults
@@ -63,23 +63,20 @@ APT installs the required runtime dependencies, including
 ## Interface
 
 ```text
-┌────────────────────────────────────────────────────────────┐
-│  SAMBACTL  0.2.0                                          │
-│  Samba administration                                    │
-├────────────────────────────────────────────────────────────┤
-│ Config: /etc/samba/smb.conf  •  Status: Ready             │
+┌────────────────────── Sambactl 0.2.0 ──────────────────────┐
+│ Samba administration                                      │
+│ Config: /etc/samba/smb.conf                               │
+│ Status: Ready                                              │
 │                                                            │
-│ MANAGE                                                     │
-│ [ Shares    ]  Shared folders, access and permissions      │
-│ [ New user  ]  Create a Samba login                        │
-│ [ Edit users]  Passwords, groups, access and deletion      │
+│ Shares            Create and manage shared folders         │
+│ New user          Create a Samba login                     │
+│ Edit users        Passwords, access, details and deletion  │
+│ Global settings   Server-wide Samba options                │
+│ Validate          Check configuration before applying      │
+│ Backups           Create or restore snapshots              │
+│ Help              Usage and version information            │
 │                                                            │
-│ SERVER                                                     │
-│ [ Settings  ]  Server-wide Samba configuration             │
-│ [ Validate  ]  Read-only configuration health check        │
-│ [ Backups   ]  Create and restore snapshots                │
-│                                                            │
-│  ↑↓ navigate   ←→ move   Enter select   Tab next          │
+│                         [ Exit ]                            │
 └────────────────────────────────────────────────────────────┘
 ```
 
