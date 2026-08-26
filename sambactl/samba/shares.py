@@ -32,6 +32,8 @@ TEMPLATES: dict[str, dict[str, str]] = {
         "guest ok": "no",
         "create mask": "0660",
         "directory mask": "2770",
+        "force create mode": "0660",
+        "force directory mode": "2770",
     },
     "Public Read Only": {"browseable": "yes", "read only": "yes", "guest ok": "yes"},
     "Public Read/Write": {

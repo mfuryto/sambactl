@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from sambactl.samba.config import SambaConfig, file_fingerprint
-from sambactl.samba.shares import ShareManager
+from sambactl.samba.shares import TEMPLATES, ShareManager
 
 
 def test_parses_sections_and_options_preserving_unknown(config_path: Path) -> None:
@@ -26,6 +26,15 @@ def test_share_create_modify_delete(config_path: Path) -> None:
     assert config.options("videos")["comment"] == "Media"
     ShareManager.delete(config, "videos")
     assert config.share_names() == ["docs"]
+
+
+def test_group_share_template_enforces_group_permissions() -> None:
+    template = TEMPLATES["Group Share"]
+
+    assert template["create mask"] == "0660"
+    assert template["directory mask"] == "2770"
+    assert template["force create mode"] == "0660"
+    assert template["force directory mode"] == "2770"
 
 
 def test_duplicate_share_rejected(config_path: Path) -> None:
