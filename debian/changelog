@@ -1,3 +1,11 @@
+sambactl (0.1.3-1) unstable; urgency=medium
+
+  * Add guided group access configuration for existing shares.
+  * Allow new Samba users to join selected shared Linux groups.
+  * Hide system groups and personal primary groups from group selectors.
+
+ -- Sambactl contributors <maintainers@example.invalid>  Wed, 26 Aug 2026 10:16:12 +0200
+
 sambactl (0.1.2-1) unstable; urgency=medium
 
   * Enforce group read/write permissions for new files and directories in
