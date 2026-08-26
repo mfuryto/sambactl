@@ -41,8 +41,8 @@ Download the latest Debian package from
 [GitHub Releases](https://github.com/mfuryto/sambactl/releases/latest):
 
 ```bash
-wget https://github.com/mfuryto/sambactl/releases/download/v0.1.3/sambactl_0.1.3-1_all.deb
-sudo apt install ./sambactl_0.1.3-1_all.deb
+wget https://github.com/mfuryto/sambactl/releases/download/v0.2.0/sambactl_0.2.0-1_all.deb
+sudo apt install ./sambactl_0.2.0-1_all.deb
 ```
 
 Run a read-only readiness check:
@@ -64,7 +64,7 @@ APT installs the required runtime dependencies, including
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
-│  SAMBACTL  0.1.3                                          │
+│  SAMBACTL  0.2.0                                          │
 │  Samba administration                                    │
 ├────────────────────────────────────────────────────────────┤
 │ Config: /etc/samba/smb.conf  •  Status: Ready             │
@@ -150,7 +150,7 @@ Build a Debian package:
 ```bash
 sudo apt install build-essential debhelper dh-python pybuild-plugin-pyproject python3-all python3-setuptools
 dpkg-buildpackage -us -uc -b
-sudo apt install ../sambactl_0.1.3-1_all.deb
+sudo apt install ../sambactl_0.2.0-1_all.deb
 ```
 
 Development setup:
