@@ -810,6 +810,8 @@ class SambactlApp:
                 values["valid users"] = filesystem.owner
             elif template == "Group Share":
                 values["force group"] = filesystem.group
+                if not values.get("valid users"):
+                    values["valid users"] = f"@{filesystem.group}"
             elif template == "Public Read/Write":
                 values["force user"] = filesystem.owner
                 values["force group"] = filesystem.group
