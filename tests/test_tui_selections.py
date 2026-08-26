@@ -43,3 +43,20 @@ def test_group_share_settings_apply_complete_access_policy() -> None:
         "force create mode": "0660",
         "force directory mode": "2770",
     }
+
+
+def test_share_list_label_summarizes_access_and_path() -> None:
+    label = app_module._share_list_label(
+        "projects",
+        {
+            "path": "/srv/samba/projects",
+            "read only": "no",
+            "guest ok": "no",
+            "force group": "editors",
+        },
+    )
+
+    assert "projects" in label
+    assert "Read/write" in label
+    assert "Group: editors" in label
+    assert "/srv/samba/projects" in label

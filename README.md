@@ -22,7 +22,7 @@ operation fails.
 
 ## Highlights
 
-- Adaptive full-screen TUI built with `prompt_toolkit`
+- UserDock-inspired adaptive full-screen TUI built with `prompt_toolkit`
 - Works over SSH without a desktop environment
 - Mouse, arrow-key, Tab, and Enter navigation
 - Guided share templates with safe permission defaults
@@ -63,20 +63,23 @@ APT installs the required runtime dependencies, including
 ## Interface
 
 ```text
-┌────────────────────── Sambactl 0.1.3 ──────────────────────┐
-│ Samba administration                                      │
-│ Config: /etc/samba/smb.conf                               │
-│ Status: Ready                                              │
+┌────────────────────────────────────────────────────────────┐
+│  SAMBACTL  0.1.3                                          │
+│  Samba administration                                    │
+├────────────────────────────────────────────────────────────┤
+│ Config: /etc/samba/smb.conf  •  Status: Ready             │
 │                                                            │
-│ Shares            Create and manage shared folders         │
-│ New user          Create a Samba login                     │
-│ Edit users        Passwords, access, details and deletion  │
-│ Global settings   Server-wide Samba options                │
-│ Validate          Check configuration before applying      │
-│ Backups           Create or restore snapshots              │
-│ Help              Usage and version information            │
+│ MANAGE                                                     │
+│ [ Shares    ]  Shared folders, access and permissions      │
+│ [ New user  ]  Create a Samba login                        │
+│ [ Edit users]  Passwords, groups, access and deletion      │
 │                                                            │
-│                         [ Exit ]                            │
+│ SERVER                                                     │
+│ [ Settings  ]  Server-wide Samba configuration             │
+│ [ Validate  ]  Read-only configuration health check        │
+│ [ Backups   ]  Create and restore snapshots                │
+│                                                            │
+│  ↑↓ navigate   ←→ move   Enter select   Tab next          │
 └────────────────────────────────────────────────────────────┘
 ```
 
