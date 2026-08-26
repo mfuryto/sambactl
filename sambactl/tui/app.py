@@ -298,6 +298,7 @@ def _share_action_dialog(name: str, details: str) -> str | None:
     actions = []
     for label, value in [
         ("Edit", "edit"),
+        ("Group access", "group_access"),
         ("Advanced", "advanced"),
         ("Delete", "delete"),
         ("Back", None),
@@ -325,6 +326,21 @@ def _share_action_dialog(name: str, details: str) -> str | None:
     return _run_dialog(
         Application(layout=Layout(page, focused_element=actions[0]), style=STYLE)
     )
+
+
+def _group_share_settings(group: str) -> dict[str, str]:
+    """Return the complete Samba access policy for a writable group share."""
+    validate_username(group)
+    return {
+        "read only": "no",
+        "guest ok": "no",
+        "valid users": f"@{group}",
+        "force group": group,
+        "create mask": "0660",
+        "directory mask": "2770",
+        "force create mode": "0660",
+        "force directory mode": "2770",
+    }
 
 
 def _confirm(text: str, *, default: bool = False) -> bool:
@@ -763,8 +779,40 @@ class SambactlApp:
         action = _share_action_dialog(name, self._format_options(name))
         if action in ("edit", "advanced"):
             self._edit_section(name, COMMON_SHARE if action == "edit" else None)
+        elif action == "group_access":
+            self._configure_group_access(name)
         elif action == "delete":
             self._delete_share(name)
+
+    def _configure_group_access(self, name: str) -> None:
+        """Apply a complete, guided group-access policy to an existing share."""
+        self._refresh_latest()
+        current = SambaConfig.read(self.info.config_path).options(name)
+        current_group = current.get("force group", "")
+        form = _fields_form(
+            f"Group access [{name}]",
+            [("group", "Linux group", current_group)],
+            help_text=(
+                "Members of this Linux group will be allowed to open and change new files in "
+                "the share. This updates Samba settings for new content; existing files and "
+                "folders keep their current permissions."
+            ),
+        )
+        if not form:
+            return
+        group = form["group"]
+        try:
+            if lookup_group(group) is None:
+                raise ValueError(f"Linux group {group!r} does not exist")
+            updates = _group_share_settings(group)
+        except ValueError as exc:
+            self._message("Invalid group", str(exc))
+            return
+        result = self.transaction.apply(
+            f"Configure group access for [{name}]",
+            lambda config: config.set_options(name, updates),
+        )
+        self._result(result)
 
     def _create_share(self) -> None:
         self._refresh_latest()

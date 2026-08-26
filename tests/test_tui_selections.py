@@ -30,3 +30,16 @@ def test_empty_share_templates_show_message(monkeypatch) -> None:
     app._create_share()
 
     assert messages == [("New share", "No share templates are available.")]
+
+
+def test_group_share_settings_apply_complete_access_policy() -> None:
+    assert app_module._group_share_settings("editors") == {
+        "read only": "no",
+        "guest ok": "no",
+        "valid users": "@editors",
+        "force group": "editors",
+        "create mask": "0660",
+        "directory mask": "2770",
+        "force create mode": "0660",
+        "force directory mode": "2770",
+    }
