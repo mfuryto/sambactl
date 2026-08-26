@@ -42,6 +42,16 @@ def lookup_group(name: str) -> Identity | None:
         return None
 
 
+def shared_group_names(minimum_gid: int = 1000) -> list[str]:
+    """List regular supplementary groups, excluding per-user primary groups."""
+    users = {entry.pw_name: entry.pw_gid for entry in pwd.getpwall()}
+    return sorted(
+        entry.gr_name
+        for entry in grp.getgrall()
+        if entry.gr_gid >= minimum_gid and users.get(entry.gr_name) != entry.gr_gid
+    )
+
+
 def parse_mode(value: str) -> int:
     if not re.fullmatch(r"[0-7]{3,4}", value):
         raise ValueError("Mode must be three or four octal digits")

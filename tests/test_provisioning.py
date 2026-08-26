@@ -3,12 +3,14 @@ from sambactl.system.users import UserProvisioner
 
 
 class FakeLinux:
-    def __init__(self, existed=False, create_ok=True, delete_ok=True):
+    def __init__(self, existed=False, create_ok=True, delete_ok=True, groups_ok=True):
         self.existed = existed
         self.create_ok = create_ok
         self.delete_ok = delete_ok
+        self.groups_ok = groups_ok
         self.created = []
         self.deleted = []
+        self.groups = []
 
     def exists(self, username):
         return self.existed
@@ -22,6 +24,12 @@ class FakeLinux:
     def delete(self, username):
         self.deleted.append(username)
         return CommandResult(("userdel", username), 0 if self.delete_ok else 1, stderr="denied")
+
+    def add_to_groups(self, username, groups):
+        self.groups.append((username, groups))
+        return CommandResult(
+            ("usermod", username), 0 if self.groups_ok else 1, stderr="group assignment denied"
+        )
 
 
 class FakeSamba:
@@ -123,3 +131,27 @@ def test_home_directory_choice_is_forwarded_to_linux_creation() -> None:
 
     assert result.ok
     assert linux.created == [("alice", True)]
+
+
+def test_selected_groups_are_assigned_before_samba_creation() -> None:
+    linux = FakeLinux()
+
+    result = UserProvisioner(linux, FakeSamba(True)).create(
+        "alice", "secret", create_linux=True, groups=["editors", "media"]
+    )
+
+    assert result.ok
+    assert linux.groups == [("alice", ["editors", "media"])]
+
+
+def test_group_assignment_failure_rolls_back_new_linux_user() -> None:
+    linux = FakeLinux(groups_ok=False)
+    samba = FakeSamba(True)
+
+    result = UserProvisioner(linux, samba).create(
+        "alice", "secret", create_linux=True, groups=["editors"]
+    )
+
+    assert not result.ok
+    assert linux.deleted == ["alice"]
+    assert not samba.called

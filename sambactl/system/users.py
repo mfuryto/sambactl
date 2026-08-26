@@ -34,6 +34,15 @@ class LinuxUserManager:
         validate_username(username)
         return self.runner.run(("userdel", "--", username))
 
+    def add_to_groups(self, username: str, groups: list[str]) -> CommandResult:
+        validate_username(username)
+        validated = [validate_username(group) for group in groups]
+        if not validated:
+            return CommandResult(("usermod",), 0)
+        return self.runner.run(
+            ("usermod", "--append", "--groups", ",".join(validated), "--", username)
+        )
+
 
 class UserProvisioner:
     """Coordinate optional Linux-account creation with Samba-account creation."""
@@ -43,7 +52,13 @@ class UserProvisioner:
         self.samba = samba
 
     def create(
-        self, username: str, password: str, *, create_linux: bool, create_home: bool = False
+        self,
+        username: str,
+        password: str,
+        *,
+        create_linux: bool,
+        create_home: bool = False,
+        groups: list[str] | None = None,
     ) -> OperationResult:
         validate_username(username)
         existed = self.linux.exists(username)
@@ -57,6 +72,21 @@ class UserProvisioner:
                     False, f"Linux account creation failed: {linux_result.stderr}"
                 )
             created_linux = True
+
+        selected_groups = groups or []
+        if selected_groups:
+            group_result = self.linux.add_to_groups(username, selected_groups)
+            if not group_result.ok:
+                detail = group_result.stderr.strip() or group_result.stdout.strip()
+                if created_linux:
+                    rollback = self.linux.delete(username)
+                    if not rollback.ok:
+                        return OperationResult(
+                            False,
+                            "CRITICAL: Linux group assignment failed and the newly created "
+                            "account could not be removed. Manual intervention required.",
+                        )
+                return OperationResult(False, f"Linux group assignment failed: {detail}")
 
         try:
             samba_result = self.samba.create(username, password)
