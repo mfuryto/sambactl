@@ -1,3 +1,11 @@
+sambactl (0.1.2-1) unstable; urgency=medium
+
+  * Enforce group read/write permissions for new files and directories in
+    group shares.
+  * Restrict group shares to the selected Linux group by default.
+
+ -- Sambactl contributors <maintainers@example.invalid>  Wed, 26 Aug 2026 09:52:34 +0200
+
 sambactl (0.1.1-1) unstable; urgency=medium
 
   * Support the older prompt_toolkit RadioList API shipped by Ubuntu 22.04.
