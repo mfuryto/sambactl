@@ -1,12 +1,19 @@
 # Security policy
 
+> [!WARNING]
+> Sambactl is archived, unsupported, and has been replaced by
+> [UserDock](https://github.com/mfuryto/userdock). No Sambactl version receives
+> security updates. Migrate to UserDock rather than deploying Sambactl on new
+> systems.
+
 ## Supported versions
 
-Security fixes are provided for the latest published release.
+Security fixes are no longer provided for Sambactl.
 
 | Version | Supported |
 | --- | --- |
-| 0.1.x | Yes |
+| 0.2.x | No |
+| 0.1.x | No |
 | Older versions | No |
 
 ## Reporting a vulnerability
@@ -22,9 +29,8 @@ Include the affected version, operating system, Samba version, reproduction
 steps, impact, and any proposed mitigation. Remove passwords, password hashes,
 private configuration, hostnames, IP addresses, and other sensitive data.
 
-Reports will be acknowledged as soon as practical. Confirmed vulnerabilities
-will be investigated privately, fixed on a restricted branch, and disclosed
-through a GitHub Security Advisory when a safe release is available.
+The repository is retained for historical reference. Vulnerability reports may
+be reviewed for awareness, but fixes and new Sambactl releases are not planned.
 
 ## Security expectations
 

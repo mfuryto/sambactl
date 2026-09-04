@@ -1,5 +1,10 @@
 # Contributing to Sambactl
 
+> [!WARNING]
+> Sambactl is archived and no longer accepts feature work or pull requests. The
+> project has been replaced by [UserDock](https://github.com/mfuryto/userdock).
+> Please direct new development and reports to that repository.
+
 Thank you for helping improve Sambactl.
 
 ## Standard workflow

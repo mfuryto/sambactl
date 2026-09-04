@@ -1,5 +1,12 @@
 # Sambactl
 
+> [!WARNING]
+> **This project is archived and no longer maintained.** Sambactl has been
+> replaced by [UserDock](https://github.com/mfuryto/userdock). Existing source
+> code and releases remain available for reference, but Sambactl will not
+> receive further features, bug fixes, or security updates. New installations
+> should use UserDock.
+
 [![CI](https://github.com/mfuryto/sambactl/actions/workflows/ci.yml/badge.svg)](https://github.com/mfuryto/sambactl/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/mfuryto/sambactl)](https://github.com/mfuryto/sambactl/releases/latest)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
@@ -35,9 +42,9 @@ operation fails.
 - Read-only server readiness check with `sambactl --check`
 - Tested compatibility with Ubuntu 22.04 LTS and modern Debian/Ubuntu releases
 
-## Quick start
+## Legacy installation
 
-Download the latest Debian package from
+The final Sambactl Debian package remains available from
 [GitHub Releases](https://github.com/mfuryto/sambactl/releases/latest):
 
 ```bash
